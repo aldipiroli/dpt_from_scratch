@@ -1,0 +1,10 @@
+torch
+torchvision
+numpy
+matplotlib
+tqdm
+pyyaml
+pillow
+tensorboard
+requests
+h5py
