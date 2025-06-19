@@ -132,7 +132,9 @@ class Trainer:
             self.total_iters += 1
             print(f"loss {loss}")
             if n_iter % 10 == 0:
-                plot_images([imgs[0].permute(1, 2, 0), preds[0], depths[0]], curr_iter=n_iter)
+                plot_images(
+                    [imgs[0].permute(1, 2, 0), preds[0], depths[0], torch.abs(preds[0] - depths[0])], curr_iter=n_iter
+                )
 
     def evaluate_model(self, max_num_samples=3):
         self.logger.info("Running Evaluation...")

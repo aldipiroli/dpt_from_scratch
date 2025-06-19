@@ -20,6 +20,7 @@ def train():
         scales=model_cfg["scales"],
         num_encoder_blocks=model_cfg["num_encoder_blocks"],
     )
+    # model = SimpleModel()
     trainer.set_model(model)
 
     data_config = config["DATA"]
@@ -29,8 +30,8 @@ def train():
     trainer.set_dataset(train_dataset, val_dataset, data_config=config["DATA"])
     trainer.set_optimizer(optim_config=config["OPTIM"])
     trainer.set_loss_function(loss_fn=AffineInvariantDepthLoss())
-    # trainer.overfit_one_batch()
-    trainer.train()
+    trainer.overfit_one_batch()
+    # trainer.train()
 
 
 if __name__ == "__main__":

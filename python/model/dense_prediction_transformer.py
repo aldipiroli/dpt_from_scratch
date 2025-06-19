@@ -325,6 +325,29 @@ class DPT(nn.Module):
         return depth_pred
 
 
+class SimpleModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.Conv2d(64, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.Conv2d(32, 1, kernel_size=1),
+        )
+
+    def forward(self, x):
+        return self.net(x).squeeze(1)
+
+
 if __name__ == "__main__":
     h, w = 384, 384 * 2
     x = torch.rand(2, 3, h, w)
@@ -332,6 +355,6 @@ if __name__ == "__main__":
         img_size=(h, w, 3),
         patch_size=16,
         embed_size=128,
-        num_encoder_blocks=3,
+        num_encoder_blocks=4,
     )
     y = model(x)

@@ -45,9 +45,11 @@ def get_logger(log_dir):
 def plot_images(images_list, filename="tmp.png", curr_iter=0):
     num_images = len(images_list)
     fig, axs = plt.subplots(num_images, 1, figsize=(5, num_images * 3))
+
     for i, tensor in enumerate(images_list):
-        axs[i].imshow(tensor.detach().cpu(), cmap="magma")
+        im = axs[i].imshow(tensor.detach().cpu(), cmap="magma")
         axs[i].axis("off")
+        cbar = plt.colorbar(im, ax=axs[i], orientation="vertical")
 
     plt.tight_layout()
     plt.subplots_adjust(top=0.9)

@@ -4,12 +4,12 @@ IMG_OUT_DIR: "../artifacts/img"
 MODEL:
   img_size: [384, 384, 3]
   patch_size: 16
-  embed_size: 64
+  embed_size: 16
   num_encoder_blocks: 4
-  reassamble_embed_size: 128
+  reassamble_embed_size: 32
   scales: [4, 8, 16, 32]
 DATA:
-  batch_size: 2
+  batch_size: 1
   root: "../data"
 OPTIM:
   optimizer: "AdamW"

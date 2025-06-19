@@ -38,4 +38,6 @@ class NYUDepthDataset(Dataset):
 
         img = np.transpose(img, (2, 1, 0))
         depth = np.transpose(depth, (1, 0))
-        return img, depth
+        depth = np.where(depth < 0.2, 0.2, depth)
+        disp = 1.0 / depth
+        return img, disp
