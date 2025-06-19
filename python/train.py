@@ -6,7 +6,7 @@ from utils.trainer import Trainer
 
 
 def train():
-    config = load_config("config/depth_anything_config.yaml")
+    config = load_config("config/dpt_config.yaml")
     print(config)
     logger = get_logger(config["LOG_DIR"])
     trainer = Trainer(config, logger)
