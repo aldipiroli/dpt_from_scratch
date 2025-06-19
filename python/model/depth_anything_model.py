@@ -13,6 +13,7 @@ class DepthAnythingModel(nn.Module):
 
     def forward(self, x):
         x = self.ln(x)
+        x = x.squeeze(-1)
         return x
 
 

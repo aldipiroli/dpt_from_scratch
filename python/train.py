@@ -16,9 +16,8 @@ def train():
     trainer.set_model(model)
 
     data_config = config["DATA"]
-    train_dataset = NYUDepthDataset(root_dir=data_config["root"], mode="train", logger=logger)
-
-    val_dataset = NYUDepthDataset(root_dir=data_config["root"], mode="val", logger=logger)
+    train_dataset = NYUDepthDataset(root_dir=data_config["root"], mode="train")
+    val_dataset = NYUDepthDataset(root_dir=data_config["root"], mode="val")
 
     trainer.set_dataset(train_dataset, val_dataset, data_config=config["DATA"])
     trainer.set_optimizer(optim_config=config["OPTIM"])

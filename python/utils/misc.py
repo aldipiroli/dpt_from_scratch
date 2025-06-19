@@ -46,7 +46,7 @@ def plot_images(images_list, filename="tmp.png", curr_iter=0):
     num_images = len(images_list)
     fig, axs = plt.subplots(num_images, 1, figsize=(5, num_images * 3))
     for i, tensor in enumerate(images_list):
-        axs[i].imshow(tensor.detach().cpu(), cmap="plasma")
+        axs[i].imshow(tensor.detach().cpu(), cmap="magma")
         axs[i].axis("off")
 
     plt.tight_layout()
