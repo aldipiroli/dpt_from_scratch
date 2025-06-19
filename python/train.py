@@ -30,8 +30,8 @@ def train():
     trainer.set_optimizer(optim_config=config["OPTIM"])
     trainer.set_loss_function(loss_fn=AffineInvariantDepthLoss())
     trainer.load_latest_checkpoint()
-    # trainer.overfit_one_batch()
-    trainer.train()
+    trainer.overfit_one_batch()
+    # trainer.train()
 
 
 if __name__ == "__main__":

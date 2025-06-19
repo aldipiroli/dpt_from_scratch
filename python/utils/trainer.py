@@ -112,6 +112,22 @@ class Trainer:
                 self.total_iters += 1
                 pbar.set_postfix({"total_iters": self.total_iters, "loss": loss.item()})
 
+    def overfit_one_batch(self):
+        self.model.train()
+        itr = iter(self.train_loader)
+        imgs, depths = next(itr)
+        for i in range(1000000):
+            self.optimizer.zero_grad()
+            imgs = imgs.to(self.device)
+            depths = depths.to(self.device)
+
+            preds = self.model(imgs)
+            loss = self.loss_fn(preds, depths)
+            loss.backward()
+            self.optimizer.step()
+            self.total_iters += 1
+            print(f"loss {loss}")
+
     def evaluate_model(self, max_num_samples=3):
         self.logger.info("Running Evaluation...")
         self.model.eval()

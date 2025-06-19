@@ -242,7 +242,7 @@ class DepthEstimationHead(nn.Module):
             output_padding=1,
         )
         self.conv_2 = nn.Sequential(nn.Conv2d(embed_size // 2, 32, kernel_size=3, stride=1, padding=1), nn.ReLU())
-        self.conv_3 = nn.Sequential(nn.Conv2d(32, 1, kernel_size=1, stride=1), nn.ReLU())
+        self.conv_3 = nn.Sequential(nn.Conv2d(32, 1, kernel_size=1, stride=1))
 
     def forward(self, x):
         x = self.conv_1(x)
@@ -275,7 +275,7 @@ class DPT(nn.Module):
         self.num_encoder_blocks = num_encoder_blocks
         assert num_encoder_blocks >= len(scales)
 
-        self.patcher = PatchImage(patch_size)
+        self.patcher = PatchImage()
         self.patch_embed_transform = nn.Linear(self.patch_dim, self.embed_size)
         self.positional_embeddings = nn.Parameter(
             data=torch.randn(self.num_patches + 1, embed_size), requires_grad=True
