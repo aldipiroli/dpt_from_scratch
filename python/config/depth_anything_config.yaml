@@ -2,11 +2,15 @@ CKPT_DIR: "../artifacts/ckpts"
 LOG_DIR: "../artifacts/logs"
 IMG_OUT_DIR: "../artifacts/img"
 MODEL:
-  input_size: 6
+  img_size: [480, 640, 3]
+  patch_size: 16
+  embed_size: 32
+  num_encoder_blocks: 4
+  reassamble_embed_size: 64
+  scales: [4, 8, 16, 32]
 DATA:
-  root: "../data"
   batch_size: 2
-  img_size: [640, 480]
+  root: "../data"
 OPTIM:
   optimizer: "AdamW"
   lr: 0.0005

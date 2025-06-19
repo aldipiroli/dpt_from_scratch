@@ -29,7 +29,7 @@ def test_nyu_dataset():
     )
     itr = iter(dataloader)
     img, depth = next(itr)
-    assert img.shape == (bs, 480, 640, 3)
+    assert img.shape == (bs, 3, 480, 640)
     assert depth.shape == (bs, 480, 640)
 
 

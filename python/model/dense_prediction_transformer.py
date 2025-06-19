@@ -162,7 +162,7 @@ class ResampleModule(nn.Module):
 
     def forward(self, x, permute=True):
         if permute:
-            x = x.permute(0, 3, 1, 2)  # (b,H/s,W/s,D') -> (b,D',H/s,W/s)
+            x = x.contiguous().permute(0, 3, 1, 2)  # (b,H/s,W/s,D') -> (b,D',H/s,W/s)
         x_embed = self.embed_projection(x)
         y = self.resample(x_embed)
         return y
@@ -285,19 +285,21 @@ class DPT(nn.Module):
         self.encoders = torch.nn.ModuleList(
             [TransformerEncoder(embed_size=embed_size, num_patches=self.num_patches) for i in range(num_encoder_blocks)]
         )
-        self.reassamble_modules = [
-            ReassambleModule(
-                img_size=img_size,
-                patch_size=patch_size,
-                scale_size=scale_size,
-                embed_size=embed_size,
-                new_embed_size=reassamble_embed_size,
-                read_type="ignore",
-            )
-            for scale_size in scales
-        ]
+        self.reassamble_modules = torch.nn.ModuleList(
+            [
+                ReassambleModule(
+                    img_size=img_size,
+                    patch_size=patch_size,
+                    scale_size=scale_size,
+                    embed_size=embed_size,
+                    new_embed_size=reassamble_embed_size,
+                    read_type="ignore",
+                )
+                for scale_size in scales
+            ]
+        )
 
-        self.fusion_modules = [FusionModule(reassamble_embed_size) for scale_size in scales]
+        self.fusion_modules = torch.nn.ModuleList([FusionModule(reassamble_embed_size) for scale_size in scales])
         self.depth_pred_head = DepthEstimationHead(embed_size=reassamble_embed_size)
 
     def forward(self, x):
@@ -319,6 +321,7 @@ class DPT(nn.Module):
             r2 = self.fusion_modules[r_id](r1, r2)
 
         depth_pred = self.depth_pred_head(r2)
+        depth_pred = depth_pred.squeeze()
         return depth_pred
 
 

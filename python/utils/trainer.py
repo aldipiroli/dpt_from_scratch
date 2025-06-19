@@ -3,7 +3,7 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from utils.misc import get_device, to_device
+from utils.misc import get_device
 
 
 class Trainer:
@@ -102,8 +102,8 @@ class Trainer:
         with tqdm(enumerate(self.train_loader), desc=f"Epoch {self.epoch}") as pbar:
             for n_iter, (imgs, depths) in pbar:
                 self.optimizer.zero_grad()
-                imgs = to_device(imgs)
-                depths = to_device(depths)
+                imgs = imgs.to(self.device)
+                depths = depths.to(self.device)
 
                 preds = self.model(imgs)
                 loss = self.loss_fn(preds, depths)

@@ -1,6 +1,6 @@
 from dataset.nyu_depth_dataset import NYUDepthDataset
+from model.dense_prediction_transformer import DPT
 from model.depth_anything_loss import AffineInvariantDepthLoss
-from model.depth_anything_model import DepthAnythingModel
 from utils.misc import get_logger, load_config
 from utils.trainer import Trainer
 
@@ -12,7 +12,14 @@ def train():
     trainer = Trainer(config, logger)
 
     model_cfg = config["MODEL"]
-    model = DepthAnythingModel(model_cfg)
+    model = DPT(
+        img_size=model_cfg["img_size"],
+        patch_size=model_cfg["patch_size"],
+        embed_size=model_cfg["embed_size"],
+        reassamble_embed_size=model_cfg["reassamble_embed_size"],
+        scales=model_cfg["scales"],
+        num_encoder_blocks=model_cfg["num_encoder_blocks"],
+    )
     trainer.set_model(model)
 
     data_config = config["DATA"]

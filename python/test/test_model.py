@@ -4,7 +4,15 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 import torch
-from model.dpt import DPT, DepthEstimationHead, FusionModule, PatchImage, ResampleModule, ResidualConvUnit
+
+from python.model.dense_prediction_transformer import (
+    DPT,
+    DepthEstimationHead,
+    FusionModule,
+    PatchImage,
+    ResampleModule,
+    ResidualConvUnit,
+)
 
 
 @pytest.mark.parametrize(

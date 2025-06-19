@@ -25,9 +25,9 @@ class NYUDepthDataset(Dataset):
 
     def __getitem__(self, idx):
         data = np.load(self.files[idx])
-        img = data["rgb"].astype(np.float32)  # (480, 640, 3)
+        img = data["rgb"].astype(np.float32)
         img /= 255
-        img = np.transpose(img, (1, 0, 2))
+        img = np.transpose(img, (2, 1, 0))  # (3, 480, 640)
 
         depth = data["depth"].astype(np.float32)  # (480, 640)
         depth = np.transpose(depth, (1, 0))
