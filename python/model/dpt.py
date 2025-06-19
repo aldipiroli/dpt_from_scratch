@@ -160,9 +160,9 @@ class ResampleModule(nn.Module):
                 output_padding=padding,
             )
 
-    def forward(self, x):
-        x = x.permute(0, 3, 1, 2)  # (b,H/s,W/s,D') -> (b,D',H/s,W/s)
-        print(x.shape)
+    def forward(self, x, permute=True):
+        if permute:
+            x = x.permute(0, 3, 1, 2)  # (b,H/s,W/s,D') -> (b,D',H/s,W/s)
         x_embed = self.embed_projection(x)
         y = self.resample(x_embed)
         return y
@@ -173,15 +173,83 @@ class ReassambleModule(nn.Module):
         super(ReassambleModule, self).__init__()
         self.read_module = ReadModule(read_type=read_type)
         self.concat_module = ConcatenateModule(img_size, patch_size)
-        self.resample_module = ResampleModule(
+        self.reassemble_module = ResampleModule(
             patch_size=patch_size, scale_size=scale_size, embed_size=embed_size, new_embed_size=new_embed_size
         )
 
     def forward(self, x):
         x_read = self.read_module(x)
         x_concat = self.concat_module(x_read)
-        x_resample = self.resample_module(x_concat)
-        return x_resample
+        x_reassemble = self.reassemble_module(x_concat)
+        return x_reassemble
+
+
+class ResidualConvUnit(nn.Module):
+    def __init__(self, embed_size):
+        super(ResidualConvUnit, self).__init__()
+        # From: https://openaccess.thecvf.com/content_cvpr_2017/papers/Lin_RefineNet_Multi-Path_Refinement_CVPR_2017_paper.pdf
+        self.relu = nn.ReLU()
+        self.conv_1 = nn.Conv2d(embed_size, embed_size, kernel_size=3, stride=1, padding=1)
+        self.conv_2 = nn.Conv2d(embed_size, embed_size, kernel_size=3, stride=1, padding=1)
+        self.conv_module = nn.Sequential(self.relu, self.conv_1, self.relu, self.conv_2)
+
+    def forward(self, x):
+        x_ = self.conv_module(x)
+        x = x_ + x
+        return x
+
+
+class FusionModule(nn.Module):
+    def __init__(self, new_embed_size):
+        super(FusionModule, self).__init__()
+        self.upsample_2x = nn.ConvTranspose2d(
+            new_embed_size,
+            new_embed_size,
+            kernel_size=3,
+            stride=2,
+            padding=1,
+            output_padding=1,
+        )
+        self.rcu_1 = ResidualConvUnit(new_embed_size)
+        self.rcu_2 = ResidualConvUnit(new_embed_size)
+        self.project = nn.Linear(new_embed_size, new_embed_size)
+
+    def forward(self, x1, x2=None):
+        x1 = self.rcu_1(x1)
+        if x2 is not None:
+            x = x1 + x2
+        else:
+            x = x1
+        x = self.rcu_2(x)
+        x_reassamble = self.upsample_2x(x)
+        x_reassamble = x_reassamble.permute(0, 2, 3, 1)  # (b, D, h, w) -> (b, h, w, D)
+        x_project = self.project(x_reassamble).permute(0, 3, 1, 2)  #  (b, h, w, D) -> (b, D, h, w)
+        # TODO: avoid multiple permutes
+        return x_project
+
+
+class DepthEstimationHead(nn.Module):
+    def __init__(self, embed_size):
+        super(DepthEstimationHead, self).__init__()
+        # Note: in supplemenatry material of "Vision Transformers for Dense Prediction"
+        self.conv_1 = nn.Conv2d(embed_size, embed_size // 2, kernel_size=3, stride=1, padding=1)
+        self.upsample_2x = nn.ConvTranspose2d(
+            embed_size // 2,
+            embed_size // 2,
+            kernel_size=3,
+            stride=2,
+            padding=1,
+            output_padding=1,
+        )
+        self.conv_2 = nn.Sequential(nn.Conv2d(embed_size // 2, 32, kernel_size=3, stride=1, padding=1), nn.ReLU())
+        self.conv_3 = nn.Sequential(nn.Conv2d(32, 1, kernel_size=1, stride=1), nn.ReLU())
+
+    def forward(self, x):
+        x = self.conv_1(x)
+        x = self.upsample_2x(x)
+        x = self.conv_2(x)
+        x = self.conv_3(x)
+        return x
 
 
 class DPT(nn.Module):
@@ -190,7 +258,9 @@ class DPT(nn.Module):
         img_size,
         patch_size,
         embed_size=128,
-        num_encoder_blocks=3,
+        num_encoder_blocks=4,
+        scales=[4, 8, 16, 32],
+        reassamble_embed_size=256,
     ):
         super(DPT, self).__init__()
         """
@@ -203,6 +273,7 @@ class DPT(nn.Module):
 
         self.embed_size = embed_size
         self.num_encoder_blocks = num_encoder_blocks
+        assert num_encoder_blocks >= len(scales)
 
         self.patcher = PatchImage(patch_size)
         self.patch_embed_transform = nn.Linear(self.patch_dim, self.embed_size)
@@ -214,14 +285,20 @@ class DPT(nn.Module):
         self.encoders = torch.nn.ModuleList(
             [TransformerEncoder(embed_size=embed_size, num_patches=self.num_patches) for i in range(num_encoder_blocks)]
         )
-        self.reassamble_module_4 = ReassambleModule(
-            img_size=img_size,
-            patch_size=patch_size,
-            scale_size=4,
-            embed_size=embed_size,
-            new_embed_size=256,
-            read_type="ignore",
-        )
+        self.reassamble_modules = [
+            ReassambleModule(
+                img_size=img_size,
+                patch_size=patch_size,
+                scale_size=scale_size,
+                embed_size=embed_size,
+                new_embed_size=reassamble_embed_size,
+                read_type="ignore",
+            )
+            for scale_size in scales
+        ]
+
+        self.fusion_modules = [FusionModule(reassamble_embed_size) for scale_size in scales]
+        self.depth_pred_head = DepthEstimationHead(embed_size=reassamble_embed_size)
 
     def forward(self, x):
         batch_size = x.shape[0]
@@ -229,19 +306,29 @@ class DPT(nn.Module):
         class_token = self.class_token.expand(batch_size, -1, -1)
         embeddings = torch.cat((class_token, self.patch_embed_transform(x)), 1) + self.positional_embeddings
         z = embeddings
-        for encoder in self.encoders:
+        all_reassamble_outputs = []
+        for layer_id, encoder in enumerate(self.encoders):
             z = encoder(z)
+            curr_reassable_output = self.reassamble_modules[layer_id](z)  # TODO: use reassamble based on fixed layer_id
+            all_reassamble_outputs.append(curr_reassable_output)
+
+        all_reassamble_outputs = all_reassamble_outputs[::-1]
+        r2 = None
+        for r_id in range(len(all_reassamble_outputs)):
+            r1 = all_reassamble_outputs[r_id]
+            r2 = self.fusion_modules[r_id](r1, r2)
+
+        depth_pred = self.depth_pred_head(r2)
+        return depth_pred
 
 
 if __name__ == "__main__":
-    h, w = 384, 384
+    h, w = 384, 384 * 2
     x = torch.rand(2, 3, h, w)
     model = DPT(
         img_size=(h, w, 3),
         patch_size=16,
         embed_size=128,
         num_encoder_blocks=3,
-        num_classes=10,
     )
     y = model(x)
-    print(y.shape)
