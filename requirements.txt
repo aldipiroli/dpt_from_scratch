@@ -1,5 +1,6 @@
-torch
-torchvision
+torch==2.3.1  # weird error for MSP accelerator
+torchaudio==2.3.1 
+torchvision==0.18.1
 numpy
 matplotlib
 tqdm
