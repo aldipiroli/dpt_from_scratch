@@ -145,26 +145,28 @@ class ResampleModule(nn.Module):
         self.scale_size = scale_size
 
         self.embed_projection = nn.Conv2d(embed_size, new_embed_size, kernel_size=1, stride=1)
-        if scale_size >= patch_size:
-            self.resample = nn.Conv2d(
-                new_embed_size, new_embed_size, kernel_size=3, stride=scale_size // patch_size, padding=1
-            )
-        else:
-            padding = 3 if scale_size == 4 else 1
-            self.resample = nn.ConvTranspose2d(
-                new_embed_size,
-                new_embed_size,
-                kernel_size=3,
-                stride=patch_size // scale_size,
-                padding=1,
-                output_padding=padding,
-            )
+        # if scale_size >= patch_size:
+        #     self.resample = nn.Conv2d(
+        #         new_embed_size, new_embed_size, kernel_size=3, stride=scale_size // patch_size, padding=1
+        #     )
+        # else:
+        #     padding = 3 if scale_size == 4 else 1
+        #     self.resample = nn.ConvTranspose2d(
+        #         new_embed_size,
+        #         new_embed_size,
+        #         kernel_size=3,
+        #         stride=patch_size // scale_size,
+        #         padding=1,
+        #         output_padding=padding,
+        #     )
 
     def forward(self, x, permute=True):
         if permute:
             x = x.contiguous().permute(0, 3, 1, 2)  # (b,H/s,W/s,D') -> (b,D',H/s,W/s)
         x_embed = self.embed_projection(x)
-        y = self.resample(x_embed)
+        y = nn.functional.interpolate(
+            x_embed, scale_factor=self.patch_size / self.scale_size, mode="bilinear", align_corners=True
+        )
         return y
 
 
@@ -202,14 +204,14 @@ class ResidualConvUnit(nn.Module):
 class FusionModule(nn.Module):
     def __init__(self, new_embed_size):
         super(FusionModule, self).__init__()
-        self.upsample_2x = nn.ConvTranspose2d(
-            new_embed_size,
-            new_embed_size,
-            kernel_size=3,
-            stride=2,
-            padding=1,
-            output_padding=1,
-        )
+        # self.upsample_2x = nn.ConvTranspose2d(
+        #     new_embed_size,
+        #     new_embed_size,
+        #     kernel_size=3,
+        #     stride=2,
+        #     padding=1,
+        #     output_padding=1,
+        # )
         self.rcu_1 = ResidualConvUnit(new_embed_size)
         self.rcu_2 = ResidualConvUnit(new_embed_size)
         self.project = nn.Linear(new_embed_size, new_embed_size)
@@ -221,7 +223,8 @@ class FusionModule(nn.Module):
         else:
             x = x1
         x = self.rcu_2(x)
-        x_reassamble = self.upsample_2x(x)
+        # x_reassamble = self.upsample_2x(x)
+        x_reassamble = nn.functional.interpolate(x, scale_factor=2, mode="bilinear", align_corners=True)
         x_reassamble = x_reassamble.permute(0, 2, 3, 1)  # (b, D, h, w) -> (b, h, w, D)
         x_project = self.project(x_reassamble).permute(0, 3, 1, 2)  #  (b, h, w, D) -> (b, D, h, w)
         # TODO: avoid multiple permutes
@@ -233,20 +236,12 @@ class DepthEstimationHead(nn.Module):
         super(DepthEstimationHead, self).__init__()
         # Note: in supplemenatry material of "Vision Transformers for Dense Prediction"
         self.conv_1 = nn.Conv2d(embed_size, embed_size // 2, kernel_size=3, stride=1, padding=1)
-        self.upsample_2x = nn.ConvTranspose2d(
-            embed_size // 2,
-            embed_size // 2,
-            kernel_size=3,
-            stride=2,
-            padding=1,
-            output_padding=1,
-        )
         self.conv_2 = nn.Sequential(nn.Conv2d(embed_size // 2, 32, kernel_size=3, stride=1, padding=1), nn.ReLU())
-        self.conv_3 = nn.Sequential(nn.Conv2d(32, 1, kernel_size=1, stride=1), nn.ReLU())
+        self.conv_3 = nn.Sequential(nn.Conv2d(32, 1, kernel_size=1, stride=1))
 
     def forward(self, x):
         x = self.conv_1(x)
-        x = self.upsample_2x(x)
+        x = nn.functional.interpolate(x, scale_factor=2, mode="bilinear", align_corners=True)
         x = self.conv_2(x)
         x = self.conv_3(x)
         return x
