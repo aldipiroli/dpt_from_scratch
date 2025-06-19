@@ -3,7 +3,7 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from utils.misc import get_device
+from utils.misc import get_device, plot_images
 
 
 class Trainer:
@@ -81,7 +81,7 @@ class Trainer:
             self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.optim_config["lr"])
         else:
             raise ValueError("Unknown optimizer")
-
+        self.use_gradient_clip = optim_config["gradient_clip"]
         self.logger.info(f"Optimizer: {self.optimizer}")
 
     def set_loss_function(self, loss_fn):
@@ -108,15 +108,18 @@ class Trainer:
                 preds = self.model(imgs)
                 loss = self.loss_fn(preds, depths)
                 loss.backward()
+                self.gradient_clip()
                 self.optimizer.step()
                 self.total_iters += 1
                 pbar.set_postfix({"total_iters": self.total_iters, "loss": loss.item()})
+                if n_iter % 10 == 0:
+                    plot_images([imgs[0].permute(1, 2, 0), preds[0], depths[0]], curr_iter=n_iter)
 
     def overfit_one_batch(self):
         self.model.train()
         itr = iter(self.train_loader)
         imgs, depths = next(itr)
-        for i in range(1000000):
+        for n_iter in range(1000000):
             self.optimizer.zero_grad()
             imgs = imgs.to(self.device)
             depths = depths.to(self.device)
@@ -124,9 +127,12 @@ class Trainer:
             preds = self.model(imgs)
             loss = self.loss_fn(preds, depths)
             loss.backward()
+            self.gradient_clip()
             self.optimizer.step()
             self.total_iters += 1
             print(f"loss {loss}")
+            if n_iter % 10 == 0:
+                plot_images([imgs[0].permute(1, 2, 0), preds[0], depths[0]], curr_iter=n_iter)
 
     def evaluate_model(self, max_num_samples=3):
         self.logger.info("Running Evaluation...")
@@ -154,3 +160,7 @@ class Trainer:
             self.logger.info(f"no_grad_name {no_grad_name}")
             raise ValueError("layers without gradient are present")
         assert len(no_grad_name) == 0
+
+    def gradient_clip(self):
+        if self.use_gradient_clip:
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1)

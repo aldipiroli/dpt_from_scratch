@@ -7,17 +7,19 @@ class AffineInvariantDepthLoss(nn.Module):
         super(AffineInvariantDepthLoss, self).__init__()
 
     def forward(self, pred, gt):
-        pred_norm = self.normalize(pred)
-        gt_norm = self.normalize(gt)
-
-        loss = torch.mean(torch.abs(pred_norm - gt_norm))
-        return loss
+        gt = torch.clamp(gt, min=1e-2)
+        disp = 1.0 / gt
+        disp = self.normalize(disp)
+        pred = self.normalize(pred)
+        loss_fn = nn.SmoothL1Loss()
+        return loss_fn(pred, disp)
 
     def normalize(self, x):
         b, h, w = x.shape
-        assert h > 0 and w > 0
-        translation = torch.median(x)
-        scale = (1 / (h * w)) * torch.sum(torch.abs(x - translation)) + 1e-6
+        x_flat = x.view(b, -1)
 
-        x_norm = (x - translation) / scale
-        return x_norm
+        translation = x_flat.mean(dim=1, keepdim=True)
+        scale = (x_flat - translation).abs().mean(dim=1, keepdim=True) + 1e-6
+
+        x_norm = (x_flat - translation) / scale
+        return x_norm.reshape(-1)

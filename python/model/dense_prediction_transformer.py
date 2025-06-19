@@ -58,7 +58,7 @@ class MultiHeadSelfAttention(nn.Module):
         self.attention_heads = torch.nn.ModuleList(
             [SelfAttention(self.in_size, int(self.out_size / self.num_heads)) for i in range(self.num_heads)]
         )
-        self.projection_matrix = nn.Linear(int(self.out_size / 3) * num_heads, self.out_size)
+        self.projection_matrix = nn.Linear((self.out_size // self.num_heads) * self.num_heads, self.out_size)
 
     def forward(self, x):
         all_self_attentions = []
@@ -242,7 +242,7 @@ class DepthEstimationHead(nn.Module):
             output_padding=1,
         )
         self.conv_2 = nn.Sequential(nn.Conv2d(embed_size // 2, 32, kernel_size=3, stride=1, padding=1), nn.ReLU())
-        self.conv_3 = nn.Sequential(nn.Conv2d(32, 1, kernel_size=1, stride=1))
+        self.conv_3 = nn.Sequential(nn.Conv2d(32, 1, kernel_size=1, stride=1), nn.ReLU())
 
     def forward(self, x):
         x = self.conv_1(x)
@@ -321,7 +321,7 @@ class DPT(nn.Module):
             r2 = self.fusion_modules[r_id](r1, r2)
 
         depth_pred = self.depth_pred_head(r2)
-        depth_pred = depth_pred.squeeze()
+        depth_pred = depth_pred.squeeze(1)
         return depth_pred
 
 
