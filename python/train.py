@@ -1,6 +1,6 @@
 from dataset.nyu_depth_dataset import NYUDepthDataset
 from model.dense_prediction_transformer import DPT
-from model.depth_anything_loss import AffineInvariantDepthLoss
+from model.depth_loss import AffineInvariantDepthLoss
 from utils.misc import get_logger, load_config
 from utils.trainer import Trainer
 
