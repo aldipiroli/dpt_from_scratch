@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import torch
@@ -93,6 +94,7 @@ class Trainer:
     def train(self):
         for curr_epoch in range(self.optim_config["num_epochs"]):
             self.epoch = curr_epoch
+            self.evaluate_model()
 
             self.train_one_epoch()
             if (curr_epoch + 1) % self.eval_every == 0:
@@ -115,7 +117,11 @@ class Trainer:
                 self.total_iters += 1
                 pbar.set_postfix({"total_iters": self.total_iters, "loss": loss.item()})
                 if n_iter % 10 == 0:
-                    plot_images([imgs[0].permute(1, 2, 0), preds[0], depths[0]], curr_iter=n_iter)
+                    plot_images(
+                        [imgs[0].permute(1, 2, 0), preds[0], depths[0]],
+                        curr_iter=self.epoch,
+                        filename=os.path.join(self.artifacts_img_dir, f"train_img.png"),
+                    )
 
     def overfit_one_batch(self):
         self.model.train()
@@ -135,18 +141,28 @@ class Trainer:
             print(f"loss {loss}")
             if n_iter % 10 == 0:
                 plot_images(
-                    [imgs[0].permute(1, 2, 0), preds[0], depths[0], torch.abs(preds[0] - depths[0])], curr_iter=n_iter
+                    [imgs[0].permute(1, 2, 0), preds[0], depths[0]],
+                    curr_iter=self.epoch,
+                    filename=os.path.join(self.artifacts_img_dir, f"overfit_img.png"),
                 )
 
     def evaluate_model(self, max_num_samples=3):
         self.logger.info("Running Evaluation...")
         self.model.eval()
-        for i, (imgs, depths) in enumerate(self.val_loader):
-            if i > max_num_samples:
+        for n_iter, (imgs, depths) in enumerate(self.val_loader):
+            if n_iter > max_num_samples:
                 break
+            imgs = imgs.to(self.device)
+            depths = depths.to(self.device)
+
             preds = self.model(imgs)
             loss = self.loss_fn(preds, depths)
-            print(f"Validation loss: {loss}")
+            self.logger.info(f"Validation loss: {loss}")
+            plot_images(
+                [imgs[0].permute(1, 2, 0), preds[0], depths[0]],
+                curr_iter=self.epoch,
+                filename=os.path.join(self.artifacts_img_dir, f"val_img_{str(n_iter).zfill(3)}.png"),
+            )
 
     def gradient_sanity_check(self):
         total_gradient = 0

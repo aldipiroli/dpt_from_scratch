@@ -21,6 +21,7 @@ def test_download_nyu_depth_dataset(skip=True):
 
 def test_nyu_dataset():
     dataset = NYUDepthDataset(root_dir="../data")
+    target_shape = dataset.target_shape
     bs = 2
     dataloader = DataLoader(
         dataset,
@@ -29,8 +30,8 @@ def test_nyu_dataset():
     )
     itr = iter(dataloader)
     img, depth = next(itr)
-    assert img.shape == (bs, 3, 480, 640)
-    assert depth.shape == (bs, 480, 640)
+    assert img.shape == (bs, 3, target_shape[0], target_shape[1])
+    assert depth.shape == (bs, target_shape[0], target_shape[1])
 
 
 if __name__ == "__main__":

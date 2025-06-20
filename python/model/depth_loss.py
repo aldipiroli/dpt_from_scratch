@@ -6,11 +6,9 @@ class AffineInvariantDepthLoss(nn.Module):
         super(AffineInvariantDepthLoss, self).__init__()
 
     def forward(self, pred, gt):
-        # gt = torch.clamp(gt, min=1e-2)
-        # disp = 1.0 / gt
-        # disp = self.normalize(disp)
-        # pred = self.normalize(pred)
-        loss_fn = nn.MSELoss()
+        gt = self.normalize(gt)
+        pred = self.normalize(pred)
+        loss_fn = nn.SmoothL1Loss()
         return loss_fn(pred, gt)
 
     def normalize(self, x):

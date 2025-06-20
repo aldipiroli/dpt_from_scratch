@@ -4,8 +4,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 import torch
-
-from python.model.dense_prediction_transformer import (
+from model.dense_prediction_transformer import (
     DPT,
     DepthEstimationHead,
     FusionModule,
@@ -125,7 +124,7 @@ def test_dpt_model(h, w):
     )
     x = torch.rand(2, 3, h, w)
     depth_pred = model(x)
-    assert depth_pred.shape == (2, 1, h, w)
+    assert depth_pred.shape == (2, h, w)
 
 
 if __name__ == "__main__":

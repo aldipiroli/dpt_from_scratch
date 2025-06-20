@@ -20,7 +20,6 @@ def train():
         scales=model_cfg["scales"],
         num_encoder_blocks=model_cfg["num_encoder_blocks"],
     )
-    # model = SimpleModel()
     trainer.set_model(model)
 
     data_config = config["DATA"]

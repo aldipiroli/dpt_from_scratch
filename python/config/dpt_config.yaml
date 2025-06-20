@@ -9,7 +9,7 @@ MODEL:
   reassamble_embed_size: 256
   scales: [4, 8, 16, 32]
 DATA:
-  batch_size: 1
+  batch_size: 8
   root: "../data"
 OPTIM:
   optimizer: "Adam"

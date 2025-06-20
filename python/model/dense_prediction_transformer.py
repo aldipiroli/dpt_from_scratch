@@ -140,25 +140,12 @@ class ResampleModule(nn.Module):
         super(ResampleModule, self).__init__()
         """
         Projects token from (H/p,W/p,D)->(H/s,W/s,D')
+        Note: paper uses ConvTranspose2d but official code uses nn.functional.interpolate
         """
         self.patch_size = patch_size
         self.scale_size = scale_size
 
         self.embed_projection = nn.Conv2d(embed_size, new_embed_size, kernel_size=1, stride=1)
-        # if scale_size >= patch_size:
-        #     self.resample = nn.Conv2d(
-        #         new_embed_size, new_embed_size, kernel_size=3, stride=scale_size // patch_size, padding=1
-        #     )
-        # else:
-        #     padding = 3 if scale_size == 4 else 1
-        #     self.resample = nn.ConvTranspose2d(
-        #         new_embed_size,
-        #         new_embed_size,
-        #         kernel_size=3,
-        #         stride=patch_size // scale_size,
-        #         padding=1,
-        #         output_padding=padding,
-        #     )
 
     def forward(self, x, permute=True):
         if permute:
@@ -226,7 +213,9 @@ class DepthEstimationHead(nn.Module):
         # Note: in supplemenatry material of "Vision Transformers for Dense Prediction"
         self.conv_1 = nn.Conv2d(embed_size, embed_size // 2, kernel_size=3, stride=1, padding=1)
         self.conv_2 = nn.Sequential(nn.Conv2d(embed_size // 2, 32, kernel_size=3, stride=1, padding=1), nn.ReLU())
-        self.conv_3 = nn.Sequential(nn.Conv2d(32, 1, kernel_size=1, stride=1))
+        self.conv_3 = nn.Sequential(
+            nn.Conv2d(32, 1, kernel_size=1, stride=1)
+        )  # Note: final ReLU sometimes leads to gradinet saturation
 
     def forward(self, x):
         x = self.conv_1(x)
