@@ -285,8 +285,6 @@ class DPT(nn.Module):
 
         self.fusion_modules = torch.nn.ModuleList([FusionModule(reassamble_embed_size) for scale_size in scales])
         self.depth_pred_head = DepthEstimationHead(embed_size=reassamble_embed_size)
-        self.project = nn.Linear(128, 768)
-        self.conv_1 = nn.Conv2d(256, 1, kernel_size=3, stride=1, padding=1)
 
     def forward(self, x):
         batch_size = x.shape[0]
@@ -301,23 +299,13 @@ class DPT(nn.Module):
             all_reassamble_outputs.append(curr_reassable_output)
 
         all_reassamble_outputs = all_reassamble_outputs[::-1]
-        r1 = all_reassamble_outputs[-1]
-        r1_up = nn.functional.interpolate(r1, scale_factor=2, mode="bilinear", align_corners=True)
+        r2 = None
+        for r_id in range(len(all_reassamble_outputs)):
+            r1 = all_reassamble_outputs[r_id]
+            r2 = self.fusion_modules[r_id](r1, r2)
 
-        r2 = all_reassamble_outputs[-2]
-        r2_up = nn.functional.interpolate(r2, scale_factor=4, mode="bilinear", align_corners=True)
-
-        f = self.fusion_modules[0](r1_up, r2_up)
-        depth_pred = self.conv_1(f).squeeze(1)
-
-        # all_reassamble_outputs = all_reassamble_outputs[::-1]
-        # r2 = None
-        # for r_id in range(len(all_reassamble_outputs)):
-        #     r1 = all_reassamble_outputs[r_id]
-        #     r2 = self.fusion_modules[r_id](r1, r2)
-
-        # depth_pred = self.depth_pred_head(r2)
-        # depth_pred = depth_pred.squeeze(1)
+        depth_pred = self.depth_pred_head(r2)
+        depth_pred = depth_pred.squeeze(1)
         return depth_pred
 
 
