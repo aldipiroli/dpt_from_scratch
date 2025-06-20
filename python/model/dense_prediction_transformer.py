@@ -296,6 +296,8 @@ class DPT(nn.Module):
 
         self.fusion_modules = torch.nn.ModuleList([FusionModule(reassamble_embed_size) for scale_size in scales])
         self.depth_pred_head = DepthEstimationHead(embed_size=reassamble_embed_size)
+        self.project = nn.Linear(128, 768)
+        self.conv_1 = nn.Conv2d(3, 1, kernel_size=3, stride=1, padding=1)
 
     def forward(self, x):
         batch_size = x.shape[0]
@@ -303,20 +305,24 @@ class DPT(nn.Module):
         class_token = self.class_token.expand(batch_size, -1, -1)
         embeddings = torch.cat((class_token, self.patch_embed_transform(x)), 1) + self.positional_embeddings
         z = embeddings
-        all_reassamble_outputs = []
+        # all_reassamble_outputs = []
         for layer_id, encoder in enumerate(self.encoders):
             z = encoder(z)
-            curr_reassable_output = self.reassamble_modules[layer_id](z)  # TODO: use reassamble based on fixed layer_id
-            all_reassamble_outputs.append(curr_reassable_output)
+            # curr_reassable_output = self.reassamble_modules[layer_id](z)  # TODO: use reassamble based on fixed layer_id
+            # all_reassamble_outputs.append(curr_reassable_output)
 
-        all_reassamble_outputs = all_reassamble_outputs[::-1]
-        r2 = None
-        for r_id in range(len(all_reassamble_outputs)):
-            r1 = all_reassamble_outputs[r_id]
-            r2 = self.fusion_modules[r_id](r1, r2)
+        z1 = z[:, 1:, :]
+        z2 = self.project(z1)
+        z3 = self.patcher.fold(z2, (384, 384))
+        # all_reassamble_outputs = all_reassamble_outputs[::-1]
+        # r2 = None
+        # for r_id in range(len(all_reassamble_outputs)):
+        #     r1 = all_reassamble_outputs[r_id]
+        #     r2 = self.fusion_modules[r_id](r1, r2)
 
-        depth_pred = self.depth_pred_head(r2)
-        depth_pred = depth_pred.squeeze(1)
+        # depth_pred = self.depth_pred_head(r2)
+        # depth_pred = depth_pred.squeeze(1)
+        depth_pred = self.conv_1(z3).squeeze(1)
         return depth_pred
 
 
