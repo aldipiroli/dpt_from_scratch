@@ -79,6 +79,8 @@ class Trainer:
         self.optim_config = optim_config
         if self.optim_config["optimizer"] == "AdamW":
             self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.optim_config["lr"])
+        elif self.optim_config["optimizer"] == "Adam":
+            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.optim_config["lr"], weight_decay=0)
         else:
             raise ValueError("Unknown optimizer")
         self.use_gradient_clip = optim_config["gradient_clip"]
