@@ -4,14 +4,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 import torch
-from model.dense_prediction_transformer import (
-    DPT,
-    DepthEstimationHead,
-    FusionModule,
-    PatchImage,
-    ResampleModule,
-    ResidualConvUnit,
-)
+from model.dpt_models import DPT, FusionModule, OutputHead, PatchImage, ResampleModule, ResidualConvUnit
 
 
 @pytest.mark.parametrize(
@@ -100,10 +93,11 @@ def test_fusion_module(h, w, ss):
 def test_depth_estimation_head():
     embed_size = 128
     h, w = 192, 192
-    head = DepthEstimationHead(embed_size)
+    num_outputs = 3
+    head = OutputHead(embed_size=embed_size, num_outputs=num_outputs)
     x = torch.rand(2, embed_size, h, w)
     y = head(x)
-    assert y.shape == (2, 1, h * 2, w * 2)
+    assert y.shape == (2, num_outputs, h * 2, w * 2)
 
 
 @pytest.mark.parametrize(
@@ -123,10 +117,11 @@ def test_dpt_model(h, w):
         blocks_ids=[2, 5, 8, 11],
         reassamble_embed_size=256,
         num_heads=8,
+        num_outputs=1,
     )
     x = torch.rand(2, 3, h, w)
     depth_pred = model(x)
-    assert depth_pred.shape == (2, h, w)
+    assert depth_pred.shape == (2, 1, h, w)
 
 
 if __name__ == "__main__":

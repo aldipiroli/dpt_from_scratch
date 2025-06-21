@@ -2,18 +2,22 @@ CKPT_DIR: "../artifacts/ckpts"
 LOG_DIR: "../artifacts/logs"
 IMG_OUT_DIR: "../artifacts/img"
 MODEL:
+  task: "depth_est"
   img_size: [384, 384, 3]
+  num_outputs: 1
   patch_size: 16
   embed_size: 128
-  num_encoder_blocks: 12
+  num_encoder_blocks: 6
   reassamble_embed_size: 256
-  scales: [4, 8, 16, 32]
-  blocks_ids: [2, 5, 8, 11]
+  scales: [8, 16]
+  blocks_ids: [4, 5]
   num_heads: 8
 DATA:
-  batch_size: 8
+  dataset: "NYUDepthDataset"
+  batch_size: 2
   root: "../data"
 OPTIM:
+  loss: "AffineInvariantDepthLoss"
   optimizer: "AdamW"
   lr: 0.0001
   num_epochs: 100000

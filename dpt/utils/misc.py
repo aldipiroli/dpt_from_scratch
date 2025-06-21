@@ -11,6 +11,7 @@ def get_device():
     device = torch.device(
         "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
     )
+    return "cpu"
     return device
 
 
@@ -42,14 +43,19 @@ def get_logger(log_dir):
     return logger
 
 
-def plot_images(images_list, filename="tmp.png", curr_iter=0):
+def plot_images(images_list, filename="tmp.png", curr_iter=0, plot_cfg=None):
     num_images = len(images_list)
     fig, axs = plt.subplots(num_images, 1, figsize=(5, num_images * 3))
 
     for i, tensor in enumerate(images_list):
-        im = axs[i].imshow(tensor.detach().cpu(), cmap="magma")
+        try:
+            im = axs[i].imshow(
+                tensor.detach().cpu(), cmap=plot_cfg["cmap"], vmin=plot_cfg["vmin"], vmax=plot_cfg["vmax"]
+            )
+            cbar = plt.colorbar(im, ax=axs[i], orientation="vertical")
+        except:
+            im = axs[i].imshow(tensor.detach().cpu().permute(1, 2, 0))
         axs[i].axis("off")
-        cbar = plt.colorbar(im, ax=axs[i], orientation="vertical")
 
     plt.tight_layout()
     plt.subplots_adjust(top=0.9)
