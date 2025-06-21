@@ -2,6 +2,8 @@ import math
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from torchvision.models.segmentation import lraspp_mobilenet_v3_large
 
 
 class PatchImage(nn.Module):
@@ -214,7 +216,7 @@ class DepthEstimationHead(nn.Module):
         self.conv_1 = nn.Conv2d(embed_size, embed_size // 2, kernel_size=3, stride=1, padding=1)
         self.conv_2 = nn.Sequential(nn.Conv2d(embed_size // 2, 32, kernel_size=3, stride=1, padding=1), nn.ReLU())
         self.conv_3 = nn.Sequential(
-            nn.Conv2d(32, 1, kernel_size=1, stride=1)
+            nn.Conv2d(32, 1, kernel_size=1, stride=1), nn.ReLU()
         )  # Note: final ReLU sometimes leads to gradinet saturation
 
     def forward(self, x):
@@ -298,36 +300,23 @@ class DPT(nn.Module):
         return depth_pred
 
 
-class SimpleModel(nn.Module):
+class LRASPP_MobileNet_V3(nn.Module):
     def __init__(self):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.Conv2d(64, 32, kernel_size=3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
-            nn.Conv2d(32, 1, kernel_size=1),
-        )
+        super(LRASPP_MobileNet_V3, self).__init__()
+        self.model = lraspp_mobilenet_v3_large(weights="COCO_WITH_VOC_LABELS_V1")  # pretrained=False
+        self.depth_head = DepthEstimationHead(960)
 
     def forward(self, x):
-        return self.net(x).squeeze(1)
+        features = self.model.backbone(x)
+        high_res_features = features["high"]
+        upsampled_features = F.interpolate(high_res_features, size=(192, 192), mode="bilinear", align_corners=False)
+        depth_pred = self.depth_head(upsampled_features)
+        return depth_pred.squeeze(1)
 
 
 if __name__ == "__main__":
-    h, w = 384, 384 * 2
+    h, w = 384, 384
     x = torch.rand(2, 3, h, w)
-    model = DPT(
-        img_size=(h, w, 3),
-        patch_size=16,
-        embed_size=128,
-        num_encoder_blocks=4,
-    )
+
+    model = LRASPP_MobileNet_V3()
     y = model(x)
