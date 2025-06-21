@@ -1,3 +1,4 @@
+import copy
 import math
 
 import torch
@@ -233,8 +234,9 @@ class DPT(nn.Module):
         img_size,
         patch_size,
         embed_size=128,
-        num_encoder_blocks=4,
+        num_encoder_blocks=12,
         scales=[4, 8, 16, 32],
+        blocks_ids=[2, 5, 8, 11],
         reassamble_embed_size=256,
     ):
         super(DPT, self).__init__()
@@ -248,7 +250,9 @@ class DPT(nn.Module):
 
         self.embed_size = embed_size
         self.num_encoder_blocks = num_encoder_blocks
+        self.blocks_ids = blocks_ids
         assert num_encoder_blocks >= len(scales)
+        assert max(blocks_ids) <= num_encoder_blocks
 
         self.patcher = PatchImage()
         self.patch_embed_transform = nn.Linear(self.patch_dim, self.embed_size)
@@ -284,11 +288,17 @@ class DPT(nn.Module):
         embeddings = torch.cat((class_token, self.patch_embed_transform(x)), 1) + self.positional_embeddings
         z = embeddings
         all_reassamble_outputs = []
+        blocks_ids = copy.deepcopy(self.blocks_ids)
+        curr_block_id = 0
         for layer_id, encoder in enumerate(self.encoders):
             z = encoder(z)
-            curr_reassable_output = self.reassamble_modules[layer_id](z)  # TODO: use reassamble based on fixed layer_id
-            all_reassamble_outputs.append(curr_reassable_output)
+            if blocks_ids[0] == layer_id:
+                curr_reassable_output = self.reassamble_modules[curr_block_id](z)
+                all_reassamble_outputs.append(curr_reassable_output)
+                blocks_ids.pop(0)
+                curr_block_id += 1
 
+        assert len(all_reassamble_outputs) == len(self.blocks_ids), len(all_reassamble_outputs)
         all_reassamble_outputs = all_reassamble_outputs[::-1]
         r2 = None
         for r_id in range(len(all_reassamble_outputs)):
