@@ -10,7 +10,7 @@ from torch.utils.data import Dataset
 
 
 class NYUDepthDataset(Dataset):
-    def __init__(self, root_dir, mode="train", target_shape=[384, 384], reshape_input=True, use_augmentation=False):
+    def __init__(self, root_dir, mode="train", target_shape=[384, 384], reshape_input=True, use_augmentation=True):
         self.root_dir = Path(root_dir)
         self.mode = mode
         self.target_shape = target_shape
