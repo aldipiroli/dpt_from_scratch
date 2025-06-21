@@ -18,6 +18,7 @@ def train():
         embed_size=model_cfg["embed_size"],
         reassamble_embed_size=model_cfg["reassamble_embed_size"],
         scales=model_cfg["scales"],
+        blocks_ids=model_cfg["blocks_ids"],
         num_encoder_blocks=model_cfg["num_encoder_blocks"],
     )
     trainer.set_model(model)
