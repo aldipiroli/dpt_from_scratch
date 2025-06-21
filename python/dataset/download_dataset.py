@@ -40,7 +40,3 @@ def download_nyu_depth_dataset(data_dir="data"):
 
             if i % 100 == 0 or i == n_samples - 1:
                 print(f"Saved: {filename}")
-
-    if os.path.exists(save_path):
-        os.remove(save_path)
-        print(f"Deleted the original .mat file: {save_path}")
