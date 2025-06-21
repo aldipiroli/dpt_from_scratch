@@ -202,7 +202,7 @@ class FusionModule(nn.Module):
         else:
             x = x1
         x = self.rcu_2(x)
-        x_reassamble = nn.functional.interpolate(x1, scale_factor=2, mode="bilinear", align_corners=True)
+        x_reassamble = nn.functional.interpolate(x, scale_factor=2, mode="bilinear", align_corners=True)
         x_project = self.project(x_reassamble)
         return x_project
 
