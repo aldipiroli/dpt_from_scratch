@@ -84,8 +84,23 @@ class Trainer:
             self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.optim_config["lr"], weight_decay=0)
         else:
             raise ValueError("Unknown optimizer")
+        if self.optim_config["scheduler"] == "cosine":
+            T_max = self.optim_config["T_max"]
+            eta_min = self.optim_config["eta_min"]
+            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=T_max, eta_min=eta_min)
+            self.logger.info(f"Scheduler: CosineAnnealingLR(T_max={T_max}, eta_min={eta_min})")
+        else:
+            self.scheduler = None
+
         self.use_gradient_clip = optim_config["gradient_clip"]
         self.logger.info(f"Optimizer: {self.optimizer}")
+
+    def scheaduler_step(self):
+        if self.scheduler:
+            self.scheduler.step()
+
+    def get_lr(self):
+        return self.optimizer.param_groups[0]["lr"]
 
     def set_loss_function(self, loss_fn):
         self.loss_fn = loss_fn.to(self.device)
@@ -94,8 +109,6 @@ class Trainer:
     def train(self):
         for curr_epoch in range(self.optim_config["num_epochs"]):
             self.epoch = curr_epoch
-            self.evaluate_model()
-
             self.train_one_epoch()
             if (curr_epoch + 1) % self.eval_every == 0:
                 self.evaluate_model()
@@ -115,13 +128,14 @@ class Trainer:
                 self.gradient_clip()
                 self.optimizer.step()
                 self.total_iters += 1
-                pbar.set_postfix({"total_iters": self.total_iters, "loss": loss.item()})
+                pbar.set_postfix({"total_iters": self.total_iters, "loss": loss.item(), "lr": self.get_lr()})
                 if n_iter % 10 == 0:
                     plot_images(
                         [imgs[0].permute(1, 2, 0), preds[0], depths[0]],
                         curr_iter=self.epoch,
                         filename=os.path.join(self.artifacts_img_dir, f"train_img.png"),
                     )
+                self.scheaduler_step()
 
     def overfit_one_batch(self):
         self.model.train()
