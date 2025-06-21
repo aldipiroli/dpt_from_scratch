@@ -21,4 +21,4 @@ jobs:
         pip install torch pytest
         pip install -r requirements.txt || true
     - name: Run tests
-      run: pytest python/test/
+      run: pytest dpt/test/
