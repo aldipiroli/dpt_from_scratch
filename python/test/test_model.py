@@ -117,10 +117,12 @@ def test_dpt_model(h, w):
     model = DPT(
         img_size=(h, w, 3),
         patch_size=16,
-        embed_size=32,
-        num_encoder_blocks=4,
+        embed_size=128,
+        num_encoder_blocks=12,
         scales=[4, 8, 16, 32],
-        reassamble_embed_size=64,
+        blocks_ids=[2, 5, 8, 11],
+        reassamble_embed_size=256,
+        num_heads=8,
     )
     x = torch.rand(2, 3, h, w)
     depth_pred = model(x)
