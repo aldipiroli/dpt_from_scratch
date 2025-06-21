@@ -217,7 +217,7 @@ class DepthEstimationHead(nn.Module):
         self.conv_1 = nn.Conv2d(embed_size, embed_size // 2, kernel_size=3, stride=1, padding=1)
         self.conv_2 = nn.Sequential(nn.Conv2d(embed_size // 2, 32, kernel_size=3, stride=1, padding=1), nn.ReLU())
         self.conv_3 = nn.Sequential(
-            nn.Conv2d(32, 1, kernel_size=1, stride=1), nn.ReLU()
+            nn.Conv2d(32, 1, kernel_size=1, stride=1)
         )  # Note: final ReLU sometimes leads to gradinet saturation
 
     def forward(self, x):
@@ -312,6 +312,101 @@ class DPT(nn.Module):
         depth_pred = self.depth_pred_head(r2)
         depth_pred = depth_pred.squeeze(1)
         return depth_pred
+
+
+class DPT_standard(nn.Module):
+    def __init__(
+        self,
+        img_size,
+        patch_size,
+        embed_size=128,
+        num_encoder_blocks=12,
+        scales=[4, 8, 16, 32],
+        blocks_ids=[2, 5, 8, 11],
+        reassamble_embed_size=256,
+        num_heads=8,
+        dropout=0.1,
+    ):
+        super(DPT_standard, self).__init__()
+        height, width, channels = img_size
+        self.num_patches = (height // patch_size) * (width // patch_size)
+        self.patch_dim = patch_size**2 * channels
+        self.patch_size = patch_size
+
+        self.embed_size = embed_size
+        self.num_encoder_blocks = num_encoder_blocks
+        self.blocks_ids = blocks_ids
+        assert num_encoder_blocks >= len(scales)
+        assert max(blocks_ids) <= num_encoder_blocks
+
+        self.patcher = PatchImage()
+        self.patch_embed_transform = nn.Linear(self.patch_dim, self.embed_size)
+        self.positional_embeddings = nn.Parameter(
+            data=torch.randn(self.num_patches + 1, embed_size), requires_grad=True
+        )
+        self.class_token = nn.Parameter(data=torch.randn(1, 1, embed_size), requires_grad=True)
+
+        self.encoders = nn.ModuleList(
+            [
+                nn.TransformerEncoder(
+                    nn.TransformerEncoderLayer(
+                        d_model=embed_size,
+                        nhead=num_heads,
+                        dim_feedforward=embed_size * 4,
+                        dropout=dropout,
+                        activation="gelu",
+                        batch_first=True,
+                        norm_first=True,
+                    ),
+                    num_layers=1,
+                )
+                for _ in range(num_encoder_blocks)
+            ]
+        )
+
+        self.reassamble_modules = nn.ModuleList(
+            [
+                ReassambleModule(
+                    img_size=img_size,
+                    patch_size=patch_size,
+                    scale_size=scale_size,
+                    embed_size=embed_size,
+                    new_embed_size=reassamble_embed_size,
+                    read_type="ignore",
+                )
+                for scale_size in scales
+            ]
+        )
+
+        self.fusion_modules = nn.ModuleList([FusionModule(reassamble_embed_size) for _ in scales])
+        self.depth_pred_head = DepthEstimationHead(embed_size=reassamble_embed_size)
+
+    def forward(self, x):
+        batch_size = x.shape[0]
+        x = self.patcher(x)
+        class_token = self.class_token.expand(batch_size, -1, -1)
+        embeddings = torch.cat((class_token, self.patch_embed_transform(x)), 1) + self.positional_embeddings
+        z = embeddings
+        all_reassamble_outputs = []
+        blocks_ids = copy.deepcopy(self.blocks_ids)
+        curr_block_id = 0
+        for layer_id, encoder in enumerate(self.encoders):
+            z = encoder(z)
+            if blocks_ids[0] == layer_id:
+                curr_reassable_output = self.reassamble_modules[curr_block_id](z)
+                all_reassamble_outputs.append(curr_reassable_output)
+                blocks_ids.pop(0)
+                curr_block_id += 1
+
+        assert len(all_reassamble_outputs) == len(self.blocks_ids), len(all_reassamble_outputs)
+        all_reassamble_outputs = all_reassamble_outputs[::-1]
+        r2 = None
+        for r_id in range(len(all_reassamble_outputs)):
+            r1 = all_reassamble_outputs[r_id]
+            r2 = self.fusion_modules[r_id](r1, r2)
+
+        depth_pred = self.depth_pred_head(r2)
+        return depth_pred.squeeze(1)
 
 
 class LRASPP_MobileNet_V3(nn.Module):
