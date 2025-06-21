@@ -234,7 +234,7 @@ class DPT_standard(nn.Module):
 
         self.fusion_modules = nn.ModuleList([FusionModule(reassamble_embed_size) for _ in scales])
         self.depth_pred_head = OutputHead(
-            embed_size=reassamble_embed_size, num_outputs=num_outputs, img_size=(img_size[0], img_size[0])
+            embed_size=reassamble_embed_size, num_outputs=num_outputs, img_size=(img_size[0], img_size[1])
         )
         self.upsample2x = nn.ConvTranspose2d(in_channels=256, out_channels=256, kernel_size=2, stride=2)
 
