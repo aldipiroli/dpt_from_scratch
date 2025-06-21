@@ -1,10 +1,8 @@
 import copy
-import math
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.models.segmentation import lraspp_mobilenet_v3_large
 
 
 class PatchImage(nn.Module):
@@ -30,73 +28,6 @@ class PatchImage(nn.Module):
         )
         x = fold(x)
         return x
-
-
-class SelfAttention(nn.Module):
-    def __init__(self, in_size=128, out_size=128):
-        super(SelfAttention, self).__init__()
-        self.in_size = in_size
-        self.out_size = out_size
-        self.K = nn.Linear(self.in_size, self.out_size)
-        self.Q = nn.Linear(self.in_size, self.out_size)
-        self.V = nn.Linear(self.in_size, self.out_size)
-
-    def forward(self, x):
-        k = self.K(x)
-        q = self.Q(x)
-        v = self.V(x)
-
-        qk = torch.matmul(q, k.transpose(-2, -1))
-        attention = nn.functional.softmax(qk / math.sqrt(self.out_size), -1)
-        self_attention = torch.matmul(attention, v)
-        return self_attention
-
-
-class MultiHeadSelfAttention(nn.Module):
-    def __init__(self, in_size=128, out_size=128, num_heads=3):
-        super(MultiHeadSelfAttention, self).__init__()
-        self.in_size = in_size
-        self.out_size = out_size
-        self.num_heads = num_heads
-        self.attention_heads = torch.nn.ModuleList(
-            [SelfAttention(self.in_size, int(self.out_size / self.num_heads)) for i in range(self.num_heads)]
-        )
-        self.projection_matrix = nn.Linear((self.out_size // self.num_heads) * self.num_heads, self.out_size)
-
-    def forward(self, x):
-        all_self_attentions = []
-        for attention_head in self.attention_heads:
-            z = attention_head(x)
-            all_self_attentions.append(z)
-        all_self_attentions = torch.cat(all_self_attentions, -1)
-        z = self.projection_matrix(all_self_attentions)
-        return z
-
-
-class TransformerEncoder(nn.Module):
-    def __init__(self, embed_size=128, num_patches=16, num_heads=8):
-        super(TransformerEncoder, self).__init__()
-        # From: https://github.com/aldipiroli/ViT_from_scratch/blob/main/python/models/simple_vit.py
-        self.embed_size = embed_size
-        self.num_patches = num_patches
-
-        self.ln = nn.LayerNorm(embed_size)
-        self.multi_head_self_attention = MultiHeadSelfAttention(
-            in_size=self.embed_size, out_size=self.embed_size, num_heads=num_heads
-        )
-        self.mlp = nn.Sequential(
-            nn.Linear(self.embed_size, self.embed_size * 2),
-            nn.GELU(),
-            nn.Linear(self.embed_size * 2, self.embed_size),
-        )
-
-    def forward(self, z):
-        z_norm = self.ln(z)
-        z0 = self.multi_head_self_attention(z_norm)
-        z1 = z + z0
-        z = self.mlp(self.ln(z1))
-        z = z + z1
-        return z
 
 
 class ReadIgnore(nn.Module):
@@ -155,7 +86,7 @@ class ResampleModule(nn.Module):
             x = x.contiguous().permute(0, 3, 1, 2)  # (b,H/s,W/s,D') -> (b,D',H/s,W/s)
         x_embed = self.embed_projection(x)
         y = nn.functional.interpolate(
-            x_embed, scale_factor=self.patch_size / self.scale_size, mode="bilinear", align_corners=True
+            x_embed, scale_factor=self.patch_size / self.scale_size, mode="bilinear", align_corners=False
         )
         return y
 
@@ -192,11 +123,19 @@ class ResidualConvUnit(nn.Module):
 
 
 class FusionModule(nn.Module):
-    def __init__(self, new_embed_size):
+    def __init__(self, new_embed_size, use_rcu=False):
         super(FusionModule, self).__init__()
-        self.rcu_1 = ResidualConvUnit(new_embed_size)
-        self.rcu_2 = ResidualConvUnit(new_embed_size)
+        self.rcu_1 = ResidualConvUnit(new_embed_size) if use_rcu else nn.Identity()
+        self.rcu_2 = ResidualConvUnit(new_embed_size) if use_rcu else nn.Identity()
         self.project = nn.Conv2d(new_embed_size, new_embed_size, kernel_size=1, stride=1, padding=0)
+        self.upsample_2x = nn.ConvTranspose2d(
+            new_embed_size,
+            new_embed_size,
+            kernel_size=3,
+            stride=2,
+            padding=1,
+            output_padding=1,
+        )
 
     def forward(self, x1, x2=None):
         x1 = self.rcu_1(x1)
@@ -205,113 +144,27 @@ class FusionModule(nn.Module):
         else:
             x = x1
         x = self.rcu_2(x)
-        x_reassamble = nn.functional.interpolate(x, scale_factor=2, mode="bilinear", align_corners=True)
-        x_project = self.project(x_reassamble)
-        return x_project
+        x_reassamble = self.upsample_2x(x)
+        return x_reassamble
 
 
-class DepthEstimationHead(nn.Module):
-    def __init__(self, embed_size):
-        super(DepthEstimationHead, self).__init__()
+class OutputHead(nn.Module):
+    def __init__(self, embed_size, num_outputs=1, img_size=(128, 128)):
+        super(OutputHead, self).__init__()
         # Note: in supplemenatry material of "Vision Transformers for Dense Prediction"
+        self.img_size = img_size
         self.conv_1 = nn.Conv2d(embed_size, embed_size // 2, kernel_size=3, stride=1, padding=1)
         self.conv_2 = nn.Sequential(nn.Conv2d(embed_size // 2, 32, kernel_size=3, stride=1, padding=1), nn.ReLU())
         self.conv_3 = nn.Sequential(
-            nn.Conv2d(32, 1, kernel_size=1, stride=1)
+            nn.Conv2d(32, num_outputs, kernel_size=1, stride=1)
         )  # Note: final ReLU sometimes leads to gradinet saturation
 
     def forward(self, x):
         x = self.conv_1(x)
-        x = nn.functional.interpolate(x, scale_factor=2, mode="bilinear", align_corners=True)
+        x = F.interpolate(x, size=(self.img_size[0], self.img_size[1]), mode="bilinear", align_corners=False)
         x = self.conv_2(x)
         x = self.conv_3(x)
         return x
-
-
-class DPT(nn.Module):
-    def __init__(
-        self,
-        img_size,
-        patch_size,
-        embed_size=128,
-        num_encoder_blocks=12,
-        scales=[4, 8, 16, 32],
-        blocks_ids=[2, 5, 8, 11],
-        reassamble_embed_size=256,
-        num_heads=8,
-    ):
-        super(DPT, self).__init__()
-        """
-        Implementation of the paper: "Vision Transformers for Dense Prediction" (https://arxiv.org/pdf/2103.13413)
-        """
-        height, width, channels = img_size
-        self.num_patches = (height // patch_size) * (width // patch_size)
-        self.patch_dim = patch_size**2 * channels
-        self.patch_size = patch_size
-
-        self.embed_size = embed_size
-        self.num_encoder_blocks = num_encoder_blocks
-        self.blocks_ids = blocks_ids
-        assert num_encoder_blocks >= len(scales)
-        assert max(blocks_ids) <= num_encoder_blocks
-
-        self.patcher = PatchImage()
-        self.patch_embed_transform = nn.Linear(self.patch_dim, self.embed_size)
-        self.positional_embeddings = nn.Parameter(
-            data=torch.randn(self.num_patches + 1, embed_size), requires_grad=True
-        )
-        self.class_token = nn.Parameter(data=torch.randn(1, 1, embed_size), requires_grad=True)
-
-        self.encoders = torch.nn.ModuleList(
-            [
-                TransformerEncoder(embed_size=embed_size, num_patches=self.num_patches, num_heads=num_heads)
-                for i in range(num_encoder_blocks)
-            ]
-        )
-        self.reassamble_modules = torch.nn.ModuleList(
-            [
-                ReassambleModule(
-                    img_size=img_size,
-                    patch_size=patch_size,
-                    scale_size=scale_size,
-                    embed_size=embed_size,
-                    new_embed_size=reassamble_embed_size,
-                    read_type="ignore",
-                )
-                for scale_size in scales
-            ]
-        )
-
-        self.fusion_modules = torch.nn.ModuleList([FusionModule(reassamble_embed_size) for scale_size in scales])
-        self.depth_pred_head = DepthEstimationHead(embed_size=reassamble_embed_size)
-
-    def forward(self, x):
-        batch_size = x.shape[0]
-        x = self.patcher(x)
-        class_token = self.class_token.expand(batch_size, -1, -1)
-        embeddings = torch.cat((class_token, self.patch_embed_transform(x)), 1) + self.positional_embeddings
-        z = embeddings
-        all_reassamble_outputs = []
-        blocks_ids = copy.deepcopy(self.blocks_ids)
-        curr_block_id = 0
-        for layer_id, encoder in enumerate(self.encoders):
-            z = encoder(z)
-            if blocks_ids[0] == layer_id:
-                curr_reassable_output = self.reassamble_modules[curr_block_id](z)
-                all_reassamble_outputs.append(curr_reassable_output)
-                blocks_ids.pop(0)
-                curr_block_id += 1
-
-        assert len(all_reassamble_outputs) == len(self.blocks_ids), len(all_reassamble_outputs)
-        all_reassamble_outputs = all_reassamble_outputs[::-1]
-        r2 = None
-        for r_id in range(len(all_reassamble_outputs)):
-            r1 = all_reassamble_outputs[r_id]
-            r2 = self.fusion_modules[r_id](r1, r2)
-
-        depth_pred = self.depth_pred_head(r2)
-        depth_pred = depth_pred.squeeze(1)
-        return depth_pred
 
 
 class DPT_standard(nn.Module):
@@ -326,6 +179,7 @@ class DPT_standard(nn.Module):
         reassamble_embed_size=256,
         num_heads=8,
         dropout=0.1,
+        num_outputs=1,
     ):
         super(DPT_standard, self).__init__()
         height, width, channels = img_size
@@ -379,7 +233,10 @@ class DPT_standard(nn.Module):
         )
 
         self.fusion_modules = nn.ModuleList([FusionModule(reassamble_embed_size) for _ in scales])
-        self.depth_pred_head = DepthEstimationHead(embed_size=reassamble_embed_size)
+        self.depth_pred_head = OutputHead(
+            embed_size=reassamble_embed_size, num_outputs=num_outputs, img_size=(img_size[0], img_size[0])
+        )
+        self.upsample2x = nn.ConvTranspose2d(in_channels=256, out_channels=256, kernel_size=2, stride=2)
 
     def forward(self, x):
         batch_size = x.shape[0]
@@ -405,27 +262,11 @@ class DPT_standard(nn.Module):
             r1 = all_reassamble_outputs[r_id]
             r2 = self.fusion_modules[r_id](r1, r2)
 
+        r2 = self.upsample2x(r2)
         depth_pred = self.depth_pred_head(r2)
-        return depth_pred.squeeze(1)
-
-
-class LRASPP_MobileNet_V3(nn.Module):
-    def __init__(self):
-        super(LRASPP_MobileNet_V3, self).__init__()
-        self.model = lraspp_mobilenet_v3_large(weights="COCO_WITH_VOC_LABELS_V1")  # pretrained=False
-        self.depth_head = DepthEstimationHead(960)
-
-    def forward(self, x):
-        features = self.model.backbone(x)
-        high_res_features = features["high"]
-        upsampled_features = F.interpolate(high_res_features, size=(192, 192), mode="bilinear", align_corners=False)
-        depth_pred = self.depth_head(upsampled_features)
-        return depth_pred.squeeze(1)
+        return depth_pred
 
 
 if __name__ == "__main__":
     h, w = 384, 384
     x = torch.rand(2, 3, h, w)
-
-    model = LRASPP_MobileNet_V3()
-    y = model(x)

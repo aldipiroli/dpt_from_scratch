@@ -6,6 +6,8 @@ class AffineInvariantDepthLoss(nn.Module):
         super(AffineInvariantDepthLoss, self).__init__()
 
     def forward(self, pred, gt):
+        if len(pred.shape) == 4:
+            pred = pred.squeeze(1)
         gt = self.normalize(gt)
         pred = self.normalize(pred)
         loss_fn = nn.SmoothL1Loss()
@@ -20,3 +22,13 @@ class AffineInvariantDepthLoss(nn.Module):
 
         x_norm = (x_flat - translation) / scale
         return x_norm.reshape(-1)
+
+
+class SegmentationLoss(nn.Module):
+    def __init__(self):
+        super(SegmentationLoss, self).__init__()
+
+    def forward(self, pred, gt):
+        criterion = nn.CrossEntropyLoss()
+        loss = criterion(pred, gt)
+        return loss

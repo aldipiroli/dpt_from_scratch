@@ -1,0 +1,28 @@
+CKPT_DIR: "../artifacts/ckpts"
+LOG_DIR: "../artifacts/logs"
+IMG_OUT_DIR: "../artifacts/img"
+MODEL:
+  task: "semseg"
+  img_size: [128, 128, 3]
+  num_outputs: 3
+  patch_size: 16
+  embed_size: 256
+  num_encoder_blocks: 6
+  reassamble_embed_size: 256
+  scales: [8, 16]
+  blocks_ids: [4, 5]
+  num_heads: 8
+DATA:
+  dataset: "OxfordIIITPetDataset"
+  batch_size: 4
+  root: "../data"
+OPTIM:
+  loss: "SegmentationLoss"
+  optimizer: "Adam"
+  lr: 0.0001
+  num_epochs: 100000
+  eval_every: 5
+  gradient_clip: true
+  scheduler: ""
+  T_max: 100
+  eta_min: 0.000001

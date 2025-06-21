@@ -5,7 +5,7 @@ import h5py
 import numpy as np
 
 
-def download_nyu_depth_dataset(data_dir="data"):
+def download_nyu_depth_dataset(data_dir="data", PARSED_FLAG="PARSED"):
     url = "http://horatio.cs.nyu.edu/mit/silberman/nyu_depth_v2/nyu_depth_v2_labeled.mat"
     filename = "nyu_depth_v2_labeled.mat"
 
@@ -19,6 +19,10 @@ def download_nyu_depth_dataset(data_dir="data"):
         print("Download complete.")
     else:
         print("File already exists. Skipping download.")
+
+    parsed_file = os.path.join(save_dir, PARSED_FLAG)
+    if os.path.exists(parsed_file):
+        print("Dataset already parsed!")
         return
 
     with h5py.File(save_path, "r") as f:
@@ -40,3 +44,7 @@ def download_nyu_depth_dataset(data_dir="data"):
 
             if i % 100 == 0 or i == n_samples - 1:
                 print(f"Saved: {filename}")
+
+    with open(parsed_file, "a"):
+        pass
+    print("Dataset was parsed!")

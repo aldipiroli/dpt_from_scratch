@@ -20,6 +20,12 @@ class Trainer:
         self.artifacts_img_dir = Path(config["IMG_OUT_DIR"])
         self.artifacts_img_dir.mkdir(parents=True, exist_ok=True)
         self.eval_every = config["OPTIM"]["eval_every"]
+        self.task = config["MODEL"]["task"]
+        self.plot_cfg = (
+            {"cmap": "magma", "vmax": None, "vmin": None}
+            if self.task == "depth_est"
+            else {"cmap": "tab10", "vmax": 2, "vmin": 0}
+        )
 
     def set_model(self, model):
         self.model = model
@@ -116,14 +122,17 @@ class Trainer:
 
     def train_one_epoch(self):
         self.model.train()
+        total_loss = 0
         with tqdm(enumerate(self.train_loader), desc=f"Epoch {self.epoch}") as pbar:
-            for n_iter, (imgs, depths) in pbar:
+            for n_iter, (imgs, labels) in pbar:
                 self.optimizer.zero_grad()
                 imgs = imgs.to(self.device)
-                depths = depths.to(self.device)
+                labels = labels.to(self.device)
 
                 preds = self.model(imgs)
-                loss = self.loss_fn(preds, depths)
+                loss = self.loss_fn(preds, labels)
+                preds = self.output_postprocess(preds)
+
                 loss.backward()
                 self.gradient_clip()
                 self.optimizer.step()
@@ -131,11 +140,20 @@ class Trainer:
                 pbar.set_postfix({"total_iters": self.total_iters, "loss": loss.item(), "lr": self.get_lr()})
                 if n_iter % 10 == 0:
                     plot_images(
-                        [imgs[0].permute(1, 2, 0), preds[0], depths[0]],
+                        [imgs[0].permute(1, 2, 0), preds[0], labels[0]],
                         curr_iter=self.epoch,
                         filename=os.path.join(self.artifacts_img_dir, f"train_img.png"),
+                        plot_cfg=self.plot_cfg,
                     )
                 self.scheaduler_step()
+
+    def output_postprocess(self, output):
+        if output.shape[1] == 1:
+            output = output.squeeze(1)  # depth case
+        else:
+            output = torch.softmax(output, dim=1)  # semseg case
+            output = torch.argmax(output, dim=1)
+        return output
 
     def overfit_one_batch(self):
         self.model.train()
@@ -158,6 +176,7 @@ class Trainer:
                     [imgs[0].permute(1, 2, 0), preds[0], depths[0]],
                     curr_iter=self.epoch,
                     filename=os.path.join(self.artifacts_img_dir, f"overfit_img.png"),
+                    plot_cfg=self.plot_cfg,
                 )
 
     def evaluate_model(self, max_num_samples=3):
