@@ -74,7 +74,7 @@ class MultiHeadSelfAttention(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, embed_size=128, num_patches=16):
+    def __init__(self, embed_size=128, num_patches=16, num_heads=8):
         super(TransformerEncoder, self).__init__()
         # From: https://github.com/aldipiroli/ViT_from_scratch/blob/main/python/models/simple_vit.py
         self.embed_size = embed_size
@@ -82,7 +82,7 @@ class TransformerEncoder(nn.Module):
 
         self.ln = nn.LayerNorm(embed_size)
         self.multi_head_self_attention = MultiHeadSelfAttention(
-            in_size=self.embed_size, out_size=self.embed_size, num_heads=3
+            in_size=self.embed_size, out_size=self.embed_size, num_heads=num_heads
         )
         self.mlp = nn.Sequential(
             nn.Linear(self.embed_size, self.embed_size * 2),
@@ -238,6 +238,7 @@ class DPT(nn.Module):
         scales=[4, 8, 16, 32],
         blocks_ids=[2, 5, 8, 11],
         reassamble_embed_size=256,
+        num_heads=8,
     ):
         super(DPT, self).__init__()
         """
@@ -262,7 +263,10 @@ class DPT(nn.Module):
         self.class_token = nn.Parameter(data=torch.randn(1, 1, embed_size), requires_grad=True)
 
         self.encoders = torch.nn.ModuleList(
-            [TransformerEncoder(embed_size=embed_size, num_patches=self.num_patches) for i in range(num_encoder_blocks)]
+            [
+                TransformerEncoder(embed_size=embed_size, num_patches=self.num_patches, num_heads=num_heads)
+                for i in range(num_encoder_blocks)
+            ]
         )
         self.reassamble_modules = torch.nn.ModuleList(
             [

@@ -9,6 +9,7 @@ MODEL:
   reassamble_embed_size: 256
   scales: [4, 8, 16, 32]
   blocks_ids: [2, 5, 8, 11]
+  num_heads: 8
 DATA:
   batch_size: 2
   root: "../data"
