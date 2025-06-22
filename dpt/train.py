@@ -19,6 +19,11 @@ def train(args):
     trainer = Trainer(config, logger)
 
     model_cfg = config["MODEL"]
+    model_vit = ViTSegmentationModel(
+        img_size=model_cfg["img_size"],
+        patch_size=model_cfg["patch_size"],
+        num_classes=model_cfg["num_outputs"],
+    )
     model_dpt = DPT_standard(
         img_size=model_cfg["img_size"],
         patch_size=model_cfg["patch_size"],
@@ -29,14 +34,7 @@ def train(args):
         num_encoder_blocks=model_cfg["num_encoder_blocks"],
         num_outputs=model_cfg["num_outputs"],
     )
-    model_vit = ViTSegmentationModel(
-        img_size=model_cfg["img_size"],
-        patch_size=model_cfg["patch_size"],
-        num_classes=model_cfg["num_outputs"],
-    )
-    model = model_vit
-    model = model_dpt
-    trainer.set_model(model)
+    trainer.set_model(model_dpt)
 
     data_config = config["DATA"]
     train_dataset = __all_datasets__[data_config["dataset"]](root_dir=data_config["root"], mode="train")

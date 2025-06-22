@@ -28,16 +28,13 @@ class ViTSegmentationModel(nn.Module):
         self.h = self.w = img_size[0] // patch_size
         num_patches = self.h * self.w
 
-        # Patch embedding
         self.patch_embed = nn.Conv2d(3, dim, kernel_size=patch_size, stride=patch_size)
 
-        # ViT
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.pos_embed = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         encoder_layer = nn.TransformerEncoderLayer(d_model=dim, nhead=heads, dim_feedforward=mlp_dim, batch_first=True)
         self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=depth)
 
-        # Decoder head
         self.decoder = nn.Sequential(
             nn.ConvTranspose2d(dim, 128, 2, stride=2), nn.ReLU(), nn.Conv2d(128, num_classes, 1)
         )
@@ -53,7 +50,7 @@ class ViTSegmentationModel(nn.Module):
         x = x + self.pos_embed[:, : x.size(1)]
         x = self.encoder(x)
 
-        x = x[:, 1:].transpose(1, 2).reshape(B, D, H_p, W_p)  # Now valid reshape
+        x = x[:, 1:].transpose(1, 2).reshape(B, D, H_p, W_p)
         x = self.decoder(x)
         x = F.interpolate(x, size=(H, W), mode="bilinear", align_corners=False)
         return x
