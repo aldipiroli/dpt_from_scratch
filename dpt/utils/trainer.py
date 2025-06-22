@@ -115,12 +115,13 @@ class Trainer:
         self.logger.info(f"Loss function {self.loss_fn}")
 
     def train(self):
-        for curr_epoch in range(self.optim_config["num_epochs"]):
-            self.epoch = curr_epoch
+        epoch_start = self.epoch
+        for curr_epoch in range(epoch_start, self.optim_config["num_epochs"]):
             self.train_one_epoch()
             if (curr_epoch + 1) % self.eval_every == 0:
                 self.evaluate_model()
                 self.save_checkpoint()
+            self.epoch = curr_epoch
 
     def train_one_epoch(self):
         self.model.train()
