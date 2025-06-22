@@ -26,7 +26,7 @@ def train(args):
         root_dir=data_config["root"], mode="train", target_shape=(model_cfg["img_size"][0], model_cfg["img_size"][1])
     )
     val_dataset = __all_datasets__[data_config["dataset"]](
-        root_dir=data_config["root"], mode="train", target_shape=(model_cfg["img_size"][0], model_cfg["img_size"][1])
+        root_dir=data_config["root"], mode="val", target_shape=(model_cfg["img_size"][0], model_cfg["img_size"][1])
     )
 
     trainer.set_dataset(train_dataset, val_dataset, data_config=config["DATA"])

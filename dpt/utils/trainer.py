@@ -125,8 +125,7 @@ class Trainer:
 
     def train_one_epoch(self):
         self.model.train()
-        total_loss = 0
-        with tqdm(enumerate(self.train_loader), desc=f"Epoch {self.epoch}") as pbar:
+        with tqdm(enumerate(self.train_loader), desc=f"Epoch: {self.epoch}/{self.optim_config['num_epochs']}") as pbar:
             for n_iter, (imgs, labels) in pbar:
                 self.optimizer.zero_grad()
                 imgs = imgs.to(self.device)
