@@ -25,5 +25,14 @@ Semantic Segmentation on the [Oxford-IIIT Pet Dataset](https://www.robots.ox.ac.
 cd python 
 python train.py config/dpt_semseg_config.yaml
 ```
+### Examples 
+>Note: Training longer would probably give better results, but I could only run a short training because of hardware limits.
 
+Learning progression over a few epochs:
+![](imgs/example_learning.gif)
+
+Generalization progression on validation data:
+![](imgs/example_generalization.gif)
+
+---
 >Note: the code implementation tries to follow the paper closely, though it occasionally differs from the [official repository](https://github.com/isl-org/DPT) in minor ways.
