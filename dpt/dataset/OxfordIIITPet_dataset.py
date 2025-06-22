@@ -6,7 +6,7 @@ from torchvision.transforms import InterpolationMode
 
 
 class OxfordIIITPetDataset(Dataset):
-    def __init__(self, root_dir, mode="train", target_size=(128, 128)):
+    def __init__(self, root_dir, mode="train", target_shape=(128, 128)):
         if mode == "train":
             mode = "trainval"
         self.dataset = OxfordIIITPet(
@@ -16,14 +16,14 @@ class OxfordIIITPetDataset(Dataset):
             download=True,
             transform=v2.Compose(
                 [
-                    v2.Resize(target_size),
+                    v2.Resize(target_shape),
                     v2.ToImage(),
                     v2.ToDtype(torch.float32, scale=True),
                 ]
             ),
             target_transform=v2.Compose(
                 [
-                    v2.Resize(target_size, interpolation=InterpolationMode.NEAREST),
+                    v2.Resize(target_shape, interpolation=InterpolationMode.NEAREST),
                     v2.ToImage(),
                     v2.ToDtype(torch.int64, scale=False),
                 ]

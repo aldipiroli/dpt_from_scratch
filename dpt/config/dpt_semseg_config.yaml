@@ -2,16 +2,17 @@ CKPT_DIR: "../artifacts/ckpts"
 LOG_DIR: "../artifacts/logs"
 IMG_OUT_DIR: "../artifacts/img"
 MODEL:
+  model_name: "DPT"
   task: "semseg"
   img_size: [128, 128, 3]
-  num_outputs: 3
   patch_size: 16
   embed_size: 256
+  num_heads: 8
   num_encoder_blocks: 6
-  reassamble_embed_size: 256
   scales: [8, 16]
   blocks_ids: [4, 5]
-  num_heads: 8
+  reassamble_embed_size: 256
+  num_outputs: 3
 DATA:
   dataset: "OxfordIIITPetDataset"
   batch_size: 4

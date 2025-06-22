@@ -3,6 +3,7 @@ import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision.models as models
 
 
 class PatchImage(nn.Module):
@@ -167,74 +168,71 @@ class OutputHead(nn.Module):
         return x
 
 
-class DPT_standard(nn.Module):
-    def __init__(
-        self,
-        img_size,
-        patch_size,
-        embed_size=128,
-        num_encoder_blocks=12,
-        scales=[4, 8, 16, 32],
-        blocks_ids=[2, 5, 8, 11],
-        reassamble_embed_size=256,
-        num_heads=8,
-        dropout=0.1,
-        num_outputs=1,
-    ):
-        super(DPT_standard, self).__init__()
-        height, width, channels = img_size
-        self.num_patches = (height // patch_size) * (width // patch_size)
-        self.patch_dim = patch_size**2 * channels
-        self.patch_size = patch_size
+class DPT(nn.Module):
+    def __init__(self, cfg):
+        super(DPT, self).__init__()
+        self.img_size = cfg["img_size"]
+        self.patch_size = cfg["patch_size"]
+        self.embed_size = cfg["embed_size"]
+        self.num_encoder_blocks = cfg["num_encoder_blocks"]
+        self.num_heads = cfg["num_heads"]
 
-        self.embed_size = embed_size
-        self.num_encoder_blocks = num_encoder_blocks
-        self.blocks_ids = blocks_ids
-        assert num_encoder_blocks >= len(scales)
-        assert max(blocks_ids) <= num_encoder_blocks
+        self.scales = cfg["scales"]
+        self.blocks_ids = cfg["blocks_ids"]
+        self.reassamble_embed_size = cfg["reassamble_embed_size"]
+        self.num_outputs = cfg["num_outputs"]
+
+        height, width, channels = self.img_size
+        self.num_patches = (height // self.patch_size) * (width // self.patch_size)
+        self.patch_dim = self.patch_size**2 * channels
+
+        assert self.num_encoder_blocks >= len(self.scales)
+        assert max(self.blocks_ids) <= self.num_encoder_blocks
 
         self.patcher = PatchImage()
         self.patch_embed_transform = nn.Linear(self.patch_dim, self.embed_size)
         self.positional_embeddings = nn.Parameter(
-            data=torch.randn(self.num_patches + 1, embed_size), requires_grad=True
+            data=torch.randn(self.num_patches + 1, self.embed_size), requires_grad=True
         )
-        self.class_token = nn.Parameter(data=torch.randn(1, 1, embed_size), requires_grad=True)
+        self.class_token = nn.Parameter(data=torch.randn(1, 1, self.embed_size), requires_grad=True)
 
         self.encoders = nn.ModuleList(
             [
                 nn.TransformerEncoder(
                     nn.TransformerEncoderLayer(
-                        d_model=embed_size,
-                        nhead=num_heads,
-                        dim_feedforward=embed_size * 4,
-                        dropout=dropout,
+                        d_model=self.embed_size,
+                        nhead=self.num_heads,
+                        dim_feedforward=self.embed_size * 4,
+                        dropout=0.1,
                         activation="gelu",
                         batch_first=True,
                         norm_first=True,
                     ),
                     num_layers=1,
                 )
-                for _ in range(num_encoder_blocks)
+                for _ in range(self.num_encoder_blocks)
             ]
         )
 
         self.reassamble_modules = nn.ModuleList(
             [
                 ReassambleModule(
-                    img_size=img_size,
-                    patch_size=patch_size,
+                    img_size=self.img_size,
+                    patch_size=self.patch_size,
                     scale_size=scale_size,
-                    embed_size=embed_size,
-                    new_embed_size=reassamble_embed_size,
+                    embed_size=self.embed_size,
+                    new_embed_size=self.reassamble_embed_size,
                     read_type="ignore",
                 )
-                for scale_size in scales
+                for scale_size in self.scales
             ]
         )
 
-        self.fusion_modules = nn.ModuleList([FusionModule(reassamble_embed_size) for _ in scales])
+        self.fusion_modules = nn.ModuleList([FusionModule(self.reassamble_embed_size) for _ in self.scales])
         self.depth_pred_head = OutputHead(
-            embed_size=reassamble_embed_size, num_outputs=num_outputs, img_size=(img_size[0], img_size[1])
+            embed_size=self.reassamble_embed_size,
+            num_outputs=self.num_outputs,
+            img_size=(self.img_size[0], self.img_size[1]),
         )
         self.upsample2x = nn.ConvTranspose2d(in_channels=256, out_channels=256, kernel_size=2, stride=2)
 
@@ -251,6 +249,98 @@ class DPT_standard(nn.Module):
             z = encoder(z)
             if blocks_ids[0] == layer_id:
                 curr_reassable_output = self.reassamble_modules[curr_block_id](z)
+                all_reassamble_outputs.append(curr_reassable_output)
+                blocks_ids.pop(0)
+                curr_block_id += 1
+
+        assert len(all_reassamble_outputs) == len(self.blocks_ids), len(all_reassamble_outputs)
+        all_reassamble_outputs = all_reassamble_outputs[::-1]
+        r2 = None
+        for r_id in range(len(all_reassamble_outputs)):
+            r1 = all_reassamble_outputs[r_id]
+            r2 = self.fusion_modules[r_id](r1, r2)
+
+        r2 = self.upsample2x(r2)
+        depth_pred = self.depth_pred_head(r2)
+        return depth_pred
+
+
+class ViTb16FeatureExtractor(torch.nn.Module):
+    def __init__(self, trainable=True):
+        super().__init__()
+        # https://docs.pytorch.org/vision/main/_modules/torchvision/models/vision_transformer.html#vit_b_16
+        self.vit = models.__dict__["vit_b_16"](pretrained=True)
+        if trainable:
+            self.vit.train()
+        else:
+            self.vit.eval()
+
+    def forward(self, x):
+        x = self.vit._process_input(x)
+        n = x.shape[0]
+        batch_class_token = self.vit.class_token.expand(n, -1, -1)
+        x = torch.cat([batch_class_token, x], dim=1)
+
+        # unwrap encoder layers
+        features = []
+        x = x + self.vit.encoder.pos_embedding
+        x = self.vit.encoder.dropout(x)
+        for layer in self.vit.encoder.layers:
+            x = layer(x)
+            features.append(x)
+        # x = self.vit.encoder.ln(x)
+        return features
+
+
+class DPT_pretrained(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.img_size = cfg["img_size"]
+        self.patch_size = cfg["patch_size"]
+        self.embed_size = cfg["embed_size"]
+        self.num_encoder_blocks = cfg["num_encoder_blocks"]
+
+        self.scales = cfg["scales"]
+        self.blocks_ids = cfg["blocks_ids"]
+        self.reassamble_embed_size = cfg["reassamble_embed_size"]
+        self.num_outputs = cfg["num_outputs"]
+        self.trainable_encoder = cfg["trainable_encoder"]
+
+        assert self.num_encoder_blocks >= len(self.scales)
+        assert max(self.blocks_ids) <= self.num_encoder_blocks
+
+        self.encoder = ViTb16FeatureExtractor(trainable=self.trainable_encoder)
+        self.reassamble_modules = nn.ModuleList(
+            [
+                ReassambleModule(
+                    img_size=self.img_size,
+                    patch_size=self.patch_size,
+                    scale_size=scale_size,
+                    embed_size=self.embed_size,
+                    new_embed_size=self.reassamble_embed_size,
+                    read_type="ignore",
+                )
+                for scale_size in self.scales
+            ]
+        )
+
+        self.fusion_modules = nn.ModuleList([FusionModule(self.reassamble_embed_size) for _ in self.scales])
+        self.depth_pred_head = OutputHead(
+            embed_size=self.reassamble_embed_size,
+            num_outputs=self.num_outputs,
+            img_size=(self.img_size[0], self.img_size[1]),
+        )
+        self.upsample2x = nn.ConvTranspose2d(in_channels=256, out_channels=256, kernel_size=2, stride=2)
+
+    def forward(self, x):
+        all_encoder_features = self.encoder(x)
+
+        all_reassamble_outputs = []
+        blocks_ids = copy.deepcopy(self.blocks_ids)
+        curr_block_id = 0
+        for layer_id, encoder_feature in enumerate(all_encoder_features):
+            if blocks_ids[0] == layer_id:
+                curr_reassable_output = self.reassamble_modules[curr_block_id](encoder_feature)
                 all_reassamble_outputs.append(curr_reassable_output)
                 blocks_ids.pop(0)
                 curr_block_id += 1

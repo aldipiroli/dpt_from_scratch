@@ -2,18 +2,23 @@ CKPT_DIR: "../artifacts/ckpts"
 LOG_DIR: "../artifacts/logs"
 IMG_OUT_DIR: "../artifacts/img"
 MODEL:
-  img_size: [384, 384, 3]
+  model_name: "DPT_pretrained"
+  task: "depth_est"
+  img_size: [224, 224, 3]
   patch_size: 16
-  embed_size: 128
+  embed_size: 768
   num_encoder_blocks: 12
+  scales: [8, 16]
+  blocks_ids: [10, 11]
   reassamble_embed_size: 256
-  scales: [4, 8, 16, 32]
-  blocks_ids: [2, 5, 8, 11]
-  num_heads: 8
+  num_outputs: 1
+  trainable_encoder: true
 DATA:
+  dataset: "NYUDepthDataset"
   batch_size: 2
   root: "../data"
 OPTIM:
+  loss: "AffineInvariantDepthLoss"
   optimizer: "AdamW"
   lr: 0.0001
   num_epochs: 100000
