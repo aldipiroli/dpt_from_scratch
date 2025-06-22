@@ -4,7 +4,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 import torch
-from model.dpt_models import DPT_standard, FusionModule, OutputHead, PatchImage, ResampleModule, ResidualConvUnit
+from model.dpt_models import DPT, DPT_pretrained, FusionModule, OutputHead, PatchImage, ResampleModule, ResidualConvUnit
 
 
 @pytest.mark.parametrize(
@@ -108,20 +108,40 @@ def test_depth_estimation_head():
     ],
 )
 def test_dpt_model(h, w):
-    model = DPT_standard(
-        img_size=(h, w, 3),
-        patch_size=16,
-        embed_size=128,
-        num_encoder_blocks=12,
-        scales=[4, 8, 16, 32],
-        blocks_ids=[2, 5, 8, 11],
-        reassamble_embed_size=256,
-        num_heads=8,
-        num_outputs=1,
-    )
+    cfg = {
+        "img_size": (h, w, 3),
+        "patch_size": 16,
+        "embed_size": 128,
+        "num_encoder_blocks": 12,
+        "scales": [4, 8, 16, 32],
+        "blocks_ids": [2, 5, 8, 11],
+        "reassamble_embed_size": 256,
+        "num_heads": 8,
+        "num_outputs": 1,
+    }
+    model = DPT(cfg)
     x = torch.rand(2, 3, h, w)
     depth_pred = model(x)
-    assert depth_pred.shape == (2, 1, h, w)
+    assert depth_pred.shape == (2, cfg["num_outputs"], h, w)
+
+
+def test_dpt_pretrained_model():
+    h, w = 224, 224
+    cfg = {
+        "img_size": (h, w, 3),
+        "patch_size": 16,
+        "embed_size": 768,
+        "num_encoder_blocks": 12,
+        "scales": [4, 8, 16, 32],
+        "blocks_ids": [2, 5, 8, 11],
+        "reassamble_embed_size": 256,
+        "num_outputs": 1,
+        "trainable_encoder": True,
+    }
+    model = DPT_pretrained(cfg)
+    x = torch.rand(2, 3, h, w)
+    depth_pred = model(x)
+    assert depth_pred.shape == (2, cfg["num_outputs"], h, w)
 
 
 if __name__ == "__main__":
