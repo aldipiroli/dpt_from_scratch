@@ -269,7 +269,7 @@ class ViTb16FeatureExtractor(torch.nn.Module):
     def __init__(self, trainable=True):
         super().__init__()
         # https://docs.pytorch.org/vision/main/_modules/torchvision/models/vision_transformer.html#vit_b_16
-        self.vit = models.__dict__["vit_b_16"](pretrained=True)
+        self.vit = models.__dict__["vit_b_16"](weights=models.ViT_B_16_Weights.DEFAULT)
         if trainable:
             self.vit.train()
         else:
@@ -288,7 +288,6 @@ class ViTb16FeatureExtractor(torch.nn.Module):
         for layer in self.vit.encoder.layers:
             x = layer(x)
             features.append(x)
-        # x = self.vit.encoder.ln(x)
         return features
 
 

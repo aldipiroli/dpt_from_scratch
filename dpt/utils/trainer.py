@@ -11,12 +11,14 @@ class Trainer:
     def __init__(self, config, logger):
         self.config = config
         self.logger = logger
+        self.logger.info(f"config: {config}")
         self.epoch = 0
         self.total_iters = 0
 
         self.ckpt_dir = Path(config["CKPT_DIR"])
         self.ckpt_dir.mkdir(parents=True, exist_ok=True)
         self.device = get_device()
+        self.logger.info(f"Using device: {self.device}")
         self.artifacts_img_dir = Path(config["IMG_OUT_DIR"])
         self.artifacts_img_dir.mkdir(parents=True, exist_ok=True)
         self.eval_every = config["OPTIM"]["eval_every"]
@@ -182,20 +184,22 @@ class Trainer:
     def evaluate_model(self, max_num_samples=3):
         self.logger.info("Running Evaluation...")
         self.model.eval()
-        for n_iter, (imgs, depths) in enumerate(self.val_loader):
+        for n_iter, (imgs, labels) in enumerate(self.val_loader):
             if n_iter > max_num_samples:
                 break
             imgs = imgs.to(self.device)
-            depths = depths.to(self.device)
+            labels = labels.to(self.device)
 
             preds = self.model(imgs)
-            loss = self.loss_fn(preds, depths)
-            self.logger.info(f"Validation loss: {loss}")
-            plot_images(
-                [imgs[0].permute(1, 2, 0), preds[0], depths[0]],
-                curr_iter=self.epoch,
-                filename=os.path.join(self.artifacts_img_dir, f"val_img_{str(n_iter).zfill(3)}.png"),
-            )
+            preds = self.output_postprocess(preds)
+
+            if n_iter % self.eval_every == 0:
+                plot_images(
+                    [imgs[0].permute(1, 2, 0), preds[0], labels[0]],
+                    curr_iter=self.epoch,
+                    filename=os.path.join(self.artifacts_img_dir, f"val_img_{str(n_iter).zfill(3)}.png"),
+                    plot_cfg=self.plot_cfg,
+                )
 
     def gradient_sanity_check(self):
         total_gradient = 0

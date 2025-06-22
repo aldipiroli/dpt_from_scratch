@@ -14,7 +14,6 @@ __all_models__ = {"DPT": DPT, "DPT_pretrained": DPT_pretrained}
 
 def train(args):
     config = load_config(args.config)
-    print(config)
     logger = get_logger(config["LOG_DIR"])
     trainer = Trainer(config, logger)
 
