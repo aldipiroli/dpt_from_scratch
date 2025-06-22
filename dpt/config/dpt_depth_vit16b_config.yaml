@@ -8,8 +8,8 @@ MODEL:
   patch_size: 16
   embed_size: 768
   num_encoder_blocks: 12
-  scales: [8, 16]
-  blocks_ids: [10, 11]
+  scales: [4, 8, 16, 32]
+  blocks_ids: [8, 9, 10, 11]
   reassamble_embed_size: 256
   num_outputs: 1
   trainable_encoder: true
