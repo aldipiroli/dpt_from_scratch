@@ -8,8 +8,8 @@ repos:
       - id: trailing-whitespace
         types: [file, python]
       - id: mixed-line-ending
-      # - id: check-added-large-files
-      #   args: [--maxkb=4096]
+      - id: check-added-large-files
+        args: [--maxkb=4096]
       - id: check-case-conflict
   - repo: https://github.com/psf/black
     rev: 23.7.0
