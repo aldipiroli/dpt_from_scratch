@@ -18,4 +18,4 @@ cd python
 python train.py config/dpt_semseg_config.yaml
 ```
 
->Note: the code implementation tries to follow the paper closely, which in small cases differs from the [official repository](https://github.com/isl-org/DPT).
+>Note: the code implementation tries to follow the paper closely, though it occasionally differs from the [official repository](https://github.com/isl-org/DPT) in minor ways.
