@@ -8,10 +8,18 @@ pip install -r requirements.txt
 ``` 
 ### Train 
 Depth Estimation on the [NYU Depth Dataset V2](https://cs.nyu.edu/~fergus/datasets/nyu_depth_v2.html):
-``` 
-cd python 
-python train.py config/dpt_depth_config.yaml 
-```
+- From pretrained [ViT16b](https://docs.pytorch.org/vision/main/models/generated/torchvision.models.vit_b_16.html)
+    ``` 
+    cd python 
+    python train.py config/dpt_depth_vit16b_config.yaml
+    ```
+- From scratch
+    ``` 
+    cd python 
+    python train.py config/dpt_depth_config.yaml 
+    ```
+
+
 Semantic Segmentation on the [Oxford-IIIT Pet Dataset](https://www.robots.ox.ac.uk/~vgg/data/pets/):
 ``` 
 cd python 
