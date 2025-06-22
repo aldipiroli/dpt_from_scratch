@@ -35,6 +35,7 @@ class NYUDepthDataset(Dataset):
         depth = data["depth"].astype(np.float32)  # (640, 480)
 
         if self.reshape_input:
+            # TODO: use random crop insteand of reshape
             img = cv2.resize(img, (self.target_shape[0], self.target_shape[1]), interpolation=cv2.INTER_LINEAR)
             depth = cv2.resize(depth, (self.target_shape[0], self.target_shape[1]), interpolation=cv2.INTER_NEAREST)
 
